@@ -184,4 +184,4 @@ set(SOURCE_FILES
     Tree/TreeTest.cc)
 
 add_executable(logcabin ${SOURCE_FILES})
-include_directories(. gtest/include)
+include_directories(. ./include gtest/include)

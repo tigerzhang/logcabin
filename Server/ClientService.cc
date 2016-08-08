@@ -25,6 +25,7 @@
 #include "Server/ClientService.h"
 #include "Server/Globals.h"
 #include "Server/StateMachine.h"
+#include "Server/StateMachineRocksdb.h"
 
 namespace LogCabin {
 namespace Server {
@@ -190,6 +191,7 @@ ClientService::stateMachineQuery(RPC::ServerRPC rpc)
     assert(result.first == Result::SUCCESS);
     uint64_t logIndex = result.second;
     globals.stateMachine->wait(logIndex);
+    // TODO: generic interface
     if (!globals.stateMachine->query(request, response))
         rpc.rejectInvalidRequest();
     rpc.reply(response);

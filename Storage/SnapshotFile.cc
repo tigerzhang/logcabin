@@ -87,6 +87,10 @@ Reader::readMessage(google::protobuf::Message& message)
 {
     uint32_t length = 0;
     uint64_t r = readRaw(&length, sizeof(length));
+    if (r == 0) {
+        return format("EOF");
+    }
+
     if (r < sizeof(length)) {
         return format("Could only read %lu bytes of %lu-byte length field in "
                       "file %s (at offset %lu of %lu-byte file)",

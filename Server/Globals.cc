@@ -26,6 +26,7 @@
 #include "Server/RaftConsensus.h"
 #include "Server/RaftService.h"
 #include "Server/StateMachine.h"
+#include "Server/StateMachineRocksdb.h"
 
 namespace LogCabin {
 namespace Server {
@@ -88,6 +89,7 @@ Globals::Globals()
     , serverId(~0UL)
     , raft()
     , stateMachine()
+        , stateMachineRocksdb()
     , controlService()
     , raftService()
     , clientService()
@@ -176,8 +178,12 @@ Globals::init()
     }
 
     if (!stateMachine) {
-        stateMachine.reset(new StateMachine(raft, config, *this));
+        stateMachine.reset(new StateMachineRocksdb(raft, config, *this));
     }
+
+//	if (!stateMachineRocksdb) {
+//		stateMachineRocksdb.reset(new StateMachineRocksdb(raft, config, *this));
+//	}
 
     serverStats.enable();
 }

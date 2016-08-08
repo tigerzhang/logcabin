@@ -72,6 +72,11 @@ enum class LogLevel {
      * went wrong, but they could be useful in diagnosing problems.
      */
     VERBOSE = 40,
+
+    /**
+     * Really verbose, only for developing.
+     */
+    VVERBOSE = 50,
 };
 
 /**

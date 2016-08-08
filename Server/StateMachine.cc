@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <rocksdb/status.h>
 
 #include "Core/Debug.h"
 #include "Core/Mutex.h"
@@ -29,6 +30,7 @@
 #include "Server/StateMachine.h"
 #include "Storage/SnapshotFile.h"
 #include "Tree/ProtoBuf.h"
+#include "Server/StateMachineRocksdb.h"
 
 namespace LogCabin {
 namespace Server {

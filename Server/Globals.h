@@ -41,6 +41,7 @@ class ControlService;
 class RaftConsensus;
 class RaftService;
 class StateMachine;
+class StateMachineRocksdb;
 
 /**
  * Holds the LogCabin daemon's top-level objects.
@@ -204,9 +205,11 @@ class Globals {
     /**
      * State machine used to process client requests.
      */
-    std::shared_ptr<Server::StateMachine> stateMachine;
+    std::shared_ptr<Server::StateMachineRocksdb> stateMachine;
 
-  private:
+    std::shared_ptr<Server::StateMachineRocksdb> stateMachineRocksdb;
+
+private:
 
     /**
      * Service used by logcabinctl to query and change a server's internal

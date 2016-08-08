@@ -259,6 +259,8 @@ clientlib = env.StaticLibrary("build/logcabin",
                    object_files['Core']))
 env.Default(clientlib)
 
+lib = File("/usr/local/lib/librocksdb.a")
+
 daemon = env.Program("build/LogCabin",
             (["build/Server/Main.cc"] +
              object_files['Server'] +
@@ -269,7 +271,7 @@ daemon = env.Program("build/LogCabin",
              object_files['RPC'] +
              object_files['Event'] +
              object_files['Core']),
-            LIBS = [ "pthread", "protobuf", "rt", "cryptopp" ])
+            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy", "z", "bz2", "lz4", "jemalloc"])
 env.Default(daemon)
 
 storageTool = env.Program("build/Storage/Tool",
@@ -282,7 +284,7 @@ storageTool = env.Program("build/Storage/Tool",
              object_files['Tree'] +
              object_files['Protocol'] +
              object_files['Core']),
-            LIBS = [ "pthread", "protobuf", "rt", "cryptopp" ])
+            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy","z", "bz2", "lz4", "jemalloc"])
 env.Default(storageTool)
 
 # Create empty directory so that it can be installed to /var/log/logcabin

@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <RPC/ClientRPC.h>
 
 #include "Core/Debug.h"
 #include "Core/Mutex.h"
@@ -132,11 +133,33 @@ StateMachineRocksdb::query(const Query::Request& request,
                     Query::Response& response) const
 {
     std::lock_guard<Core::Mutex> lockGuard(mutex);
+//    if (request.has_tree()) {
+//        Tree::ProtoBuf::readOnlyTreeRPC(tree,
+//                                        request.tree(),
+//                                        *response.mutable_tree());
+//        return true;
+//    }
+    // qeury from rocksdb
     if (request.has_tree()) {
-        Tree::ProtoBuf::readOnlyTreeRPC(tree,
-                                        request.tree(),
-                                        *response.mutable_tree());
-        return true;
+        const PC::ReadOnlyTree::Request& tree = request.tree();
+        if (tree.has_read()) {
+            std::string contents;
+            rocksdb::Status s = getRdb(tree.read().path(), &contents);
+            if (s.ok()) {
+                response.mutable_tree()->mutable_read()->set_contents(contents);
+                response.mutable_tree()->set_status(Protocol::Client::Status::OK);
+                return true;
+            }
+            else {
+                response.mutable_tree()->set_error(s.ToString());
+                response.mutable_tree()->set_status(Protocol::Client::Status::LOOKUP_ERROR);
+                return true;
+            }
+        } else {
+            response.mutable_tree()->set_error("Only read operation supported");
+            response.mutable_tree()->set_status(Protocol::Client::Status::TYPE_ERROR);
+            return true;
+        }
     }
     warnUnknownRequest(request, "does not understand the given request");
     return false;
@@ -337,6 +360,15 @@ StateMachineRocksdb::apply(const RaftConsensus::Entry& entry)
                         command.tree(),
                         *inserted.first->second.mutable_tree());
                     session.lastModified = entry.clusterTime;
+
+                    const PC::ReadWriteTree::Request req = command.tree();
+                    if (req.has_write()) {
+                        const std::string path = req.write().path();
+                        const std::string content = req.write().contents();
+                        VVERBOSE("apply %s:%s", path.c_str(), content.c_str());
+                        rocksdb::Status s = putRdb(path, content);
+                        assert(s.ok());
+                    }
                 } else {
                     // response exists, do not re-apply
                 }
@@ -558,7 +590,18 @@ StateMachineRocksdb::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     }
 
     // Load the tree's state
-    tree.loadSnapshot(stream);
+//    tree.loadSnapshot(stream);
+    PC::ReadWriteTree::Request::Write write;
+    while (true) {
+        std::string result = stream.readMessage(write);
+        if (!result.empty()) {
+            if (result == "EOF") {
+                break;
+            } else {
+                PANIC("Couldn't read snapshot: %s", result.c_str());
+            }
+        }
+    }
 }
 
 void
@@ -769,7 +812,19 @@ StateMachineRocksdb::takeSnapshot(uint64_t lastIncludedIndex,
             writer->writeMessage(header);
         }
         // Then the Tree itself (this one is potentially large)
-        tree.dumpSnapshot(*writer);
+//        tree.dumpSnapshot(*writer);
+        // FIXME: (zhanghu) there will be a write load problem, if we dump
+        //  the snapshot to the same disk with state machine.
+        NOTICE("Dump rocksdb:");
+        rocksdb::Iterator* it = rdb->NewIterator(rocksdb::ReadOptions());
+        for (it->SeekToFirst(); it->Valid(); it->Next()) {
+            NOTICE("%s : %s", it->key().ToString().c_str(),
+                    it->value().ToString().c_str());
+            PC::ReadWriteTree::Request::Write write;
+            write.set_path(it->key().ToString());
+            write.set_contents(it->value().ToString());
+            writer->writeMessage(write);
+        }
 
         // Flush the changes to the snapshot file before exiting.
         writer->flushToOS();
@@ -860,25 +915,27 @@ StateMachineRocksdb::openDB() {
     // create the DB if it's not already present
     options.create_if_missing = true;
 
-	VERBOSE("FSM rocksdb dir: %s", kDBPath.c_str());
-	std::cout << kDBPath << std::endl;
+	NOTICE("FSM rocksdb dir: %s", kDBPath.c_str());
 
     // open DB
     rocksdb::Status s = rocksdb::DB::Open(options, kDBPath, &db);
-	std::cout << "DB::Open " << s.code() << std::endl;
     rdb.reset(db);
     assert(s.ok());
 }
 
-rocksdb::Status StateMachineRocksdb::putRdb(const std::string& key, const std::string& value) {
+rocksdb::Status
+StateMachineRocksdb::putRdb(
+        const std::string& key, const std::string& value) {
     rocksdb::Status s = rdb->Put(rocksdb::WriteOptions(), key, value);
     assert(s.ok());
     return s;
 }
 
-rocksdb::Status StateMachineRocksdb::getRdb(const std::string &key, std::string *value) {
+rocksdb::Status
+StateMachineRocksdb::getRdb(
+        const std::string &key, std::string *value) const {
     rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), key, value);
-	assert(s.ok());
+//	assert(s.ok());
     return s;
 }
 

@@ -22,6 +22,7 @@
 #include "Server/Globals.h"
 #include "Server/RaftConsensus.h"
 #include "Server/StateMachine.h"
+#include "Server/StateMachineRocksdb.h"
 #include "Server/ServerStats.h"
 
 namespace LogCabin {

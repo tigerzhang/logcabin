@@ -9,6 +9,7 @@ src = [
     "RaftService.cc",
     "ServerStats.cc",
     "StateMachine.cc",
+    "StateMachineRocksdb.cc"
 ]
 object_files['Server'] = (env.StaticObject(src) +
                           env.Protobuf("SnapshotMetadata.proto") +

@@ -35,6 +35,7 @@
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
 #include <LogCabin/Util.h>
+#include "Core/StringUtil.h"
 
 namespace {
 
@@ -43,8 +44,10 @@ using LogCabin::Client::Result;
 using LogCabin::Client::Status;
 using LogCabin::Client::Tree;
 using LogCabin::Client::Util::parseNonNegativeDuration;
+using LogCabin::Core::StringUtil::format;
 
-/**
+
+    /**
  * Parses argv for the main function.
  */
 class OptionParser {
@@ -225,7 +228,7 @@ writeThreadMain(uint64_t id,
     for (uint64_t i = 0; i < numWrites; ++i) {
         if (exit)
             break;
-        tree.writeEx(key, value);
+        tree.writeEx(format("%s-%ld", key.c_str(), i), value);
         writesDone = i + 1;
     }
 }
@@ -306,6 +309,10 @@ main(int argc, char** argv)
                   << " ms to write "
                   << totalWritesDone
                   << " objects"
+                  << std::endl;
+        std::cout << "ops: "
+                  << static_cast<double>(totalWritesDone)
+                     / (static_cast<double>(endNanos - startNanos) / 1e9)
                   << std::endl;
         return 0;
 

@@ -157,4 +157,11 @@ extern std::string processName;
 #define VERBOSE(format, ...) \
     LOG((::LogCabin::Core::Debug::LogLevel::VERBOSE), format, ##__VA_ARGS__)
 
+/**
+ * Log a VVERBOSE message.
+ * \copydetails ERROR
+ */
+#define VVERBOSE(format, ...) \
+    LOG((::LogCabin::Core::Debug::LogLevel::VVERBOSE), format, ##__VA_ARGS__)
+
 #endif /* LOGCABIN_CORE_DEBUG_H */

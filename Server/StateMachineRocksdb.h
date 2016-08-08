@@ -540,7 +540,7 @@ class StateMachineRocksdb {
 
 public:
     rocksdb::Status putRdb(const std::string& key, const std::string& value);
-    rocksdb::Status getRdb(const std::string& key, std::string* value);
+    rocksdb::Status getRdb(const std::string& key, std::string* value) const;
 };
 
 } // namespace LogCabin::Server
