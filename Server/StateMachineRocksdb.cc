@@ -654,8 +654,7 @@ StateMachineRocksdb::shouldTakeSnapshot(uint64_t lastIncludedIndex) const
         curr = lastIncludedIndex - stats.last_snapshot_index();
     uint64_t prev = curr - 1;
     uint64_t logEntries = stats.last_log_index() - stats.last_snapshot_index();
-    if (curr != logEntries &&
-        10 * prev / logEntries != 10 * curr / logEntries) {
+    if (10 * prev / logEntries != 10 * curr / logEntries) {
         NOTICE("Have applied %lu%% of the %lu total log entries",
                100 * curr / logEntries,
                logEntries);
