@@ -2,3 +2,6 @@
 	path = gtest
 	# relative URL, usually goes to https://github.com/logcabin/gtest.git
 	url = ../gtest.git
+[submodule "rocksdb"]
+	path = rocksdb
+	url = https://github.com/facebook/rocksdb
