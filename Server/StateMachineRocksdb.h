@@ -536,7 +536,7 @@ class StateMachineRocksdb {
 
     std::shared_ptr<rocksdb::DB> rdb;
 
-    void openDB();
+    void openStateMachineDb();
 
 public:
     rocksdb::Status putRdb(const std::string& key, const std::string& value);

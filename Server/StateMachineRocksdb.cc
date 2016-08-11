@@ -104,14 +104,14 @@ StateMachineRocksdb::StateMachineRocksdb(std::shared_ptr<RaftConsensus> consensu
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
                                                 MAX_SUPPORTED_VERSION);
+    openStateMachineDb();
+
     if (!stateMachineSuppressThreads) {
         applyThread = std::thread(&StateMachineRocksdb::applyThreadMain, this);
         snapshotThread = std::thread(&StateMachineRocksdb::snapshotThreadMain, this);
         snapshotWatchdogThread = std::thread(
                 &StateMachineRocksdb::snapshotWatchdogThreadMain, this);
     }
-
-    openDB();
 }
 
 StateMachineRocksdb::~StateMachineRocksdb()
@@ -815,11 +815,11 @@ StateMachineRocksdb::takeSnapshot(uint64_t lastIncludedIndex,
 //        tree.dumpSnapshot(*writer);
         // FIXME: (zhanghu) there will be a write load problem, if we dump
         //  the snapshot to the same disk with state machine.
-        NOTICE("Dump rocksdb:");
+        NOTICE("Dump rocksdb to snapshot");
         rocksdb::Iterator* it = rdb->NewIterator(rocksdb::ReadOptions());
         for (it->SeekToFirst(); it->Valid(); it->Next()) {
-            NOTICE("%s : %s", it->key().ToString().c_str(),
-                    it->value().ToString().c_str());
+            // NOTICE("%s : %s", it->key().ToString().c_str(),
+            //         it->value().ToString().c_str());
             PC::ReadWriteTree::Request::Write write;
             write.set_path(it->key().ToString());
             write.set_contents(it->value().ToString());
@@ -898,7 +898,7 @@ StateMachineRocksdb::warnUnknownRequest(
 }
 
 void
-StateMachineRocksdb::openDB() {
+StateMachineRocksdb::openStateMachineDb() {
     if (rdb != nullptr) {
         return;
     }
