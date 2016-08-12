@@ -904,7 +904,9 @@ StateMachineRocksdb::openStateMachineDb() {
     }
 
     char buf[1024];
-    snprintf(buf, 1023, "data/server%ld/fsm-rocksdb", globals.serverId);
+    snprintf(buf, 1023, "%s/server%ld/fsm-rocksdb",
+             globals.config.read<std::string>("storagePath", "storage").c_str(),
+             globals.serverId);
     std::string kDBPath(buf);
 
     rocksdb::DB* db;
