@@ -27,6 +27,8 @@
 #include "Server/Globals.h"
 #include "Server/RaftConsensus.h"
 
+extern bool LogCabin::Storage::FilesystemUtil::skipFsync;
+
 namespace {
 
 /**
@@ -53,9 +55,10 @@ class OptionParser {
                {"log",  required_argument, NULL, 'l'},
                {"pidfile",  required_argument, NULL, 'p'},
                {"test",  no_argument, NULL, 't'},
+               {"skipFsync", no_argument, NULL, 'f'},
                {0, 0, 0, 0}
             };
-            int c = getopt_long(argc, argv, "bc:dhl:p:t", longOptions, NULL);
+            int c = getopt_long(argc, argv, "bc:dhl:p:tf", longOptions, NULL);
 
             // Detect the end of the options.
             if (c == -1)
@@ -82,6 +85,9 @@ class OptionParser {
                     break;
                 case 't':
                     testConfig = true;
+                    break;
+                case 'f':
+                    LogCabin::Storage::FilesystemUtil::skipFsync = true;
                     break;
                 case '?':
                 default:
@@ -155,6 +161,10 @@ class OptionParser {
             << std::endl
             << "                               "
             << "and exit"
+            << std::endl
+
+            << "   -f, --skipFsync                "
+            << "Skip file sync"
             << std::endl
             << std::endl
 
