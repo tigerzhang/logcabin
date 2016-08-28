@@ -31,6 +31,7 @@
 #include <iostream>
 #include <thread>
 #include <unistd.h>
+#include <algorithm>
 
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
@@ -46,6 +47,10 @@ using LogCabin::Client::Tree;
 using LogCabin::Client::Util::parseNonNegativeDuration;
 using LogCabin::Core::StringUtil::format;
 
+uint64_t timeNanos(void);
+
+std::vector<uint64_t> stats;
+std::mutex statsMutex;
 
     /**
  * Parses argv for the main function.
@@ -228,7 +233,14 @@ writeThreadMain(uint64_t id,
     for (uint64_t i = 0; i < numWrites; ++i) {
         if (exit)
             break;
+        uint64_t startNanos = timeNanos();
         tree.writeEx(format("%s-%ld", key.c_str(), i), value);
+        uint64_t endNanos = timeNanos();
+        {
+            std::lock_guard<std::mutex> lock(statsMutex);
+            
+            stats.push_back(endNanos - startNanos);
+        }
         writesDone = i + 1;
     }
 }
@@ -266,6 +278,31 @@ timerThreadMain(uint64_t timeout, std::atomic<bool>& exit)
     }
 }
 
+void statsThreadMain(std::atomic<bool>& exit) {
+    uint64_t min, max, mid, dot99;
+    const uint64_t unit = 1000;
+    std::cout << std::endl << "unit is microsecond" << std::endl;
+
+    while (!exit) {
+        usleep(10 * 1000 * 1000);
+        std::cout << "stats vector size: " << stats.size() << std::endl;
+        {
+            std::lock_guard<std::mutex> lock(statsMutex);
+
+            std::sort(stats.begin(), stats.end());
+            min = stats.front() / unit;
+            max = stats.back() / unit ;
+            mid = stats.at(stats.size() / 2) / unit;
+            dot99 = stats.at(stats.size() * 99 / 100) / unit;
+        }
+        std::cout << "min: " << min
+                  << " max: " << max
+                  << " mid: " << mid
+                  << " .99: " << dot99
+                  << std::endl;
+    }
+}
+
 } // anonymous namespace
 
 int
@@ -295,6 +332,8 @@ main(int argc, char** argv)
                                  std::ref(exit),
                                  std::ref(writesDonePerThread.at(i)));
         }
+
+        std::thread statsThread(statsThreadMain, std::ref(exit));
         for (uint64_t i = 0; i < options.writers; ++i) {
             threads.at(i).join();
             totalWritesDone += writesDonePerThread.at(i);
@@ -302,6 +341,7 @@ main(int argc, char** argv)
         uint64_t endNanos = timeNanos();
         exit = true;
         timer.join();
+        statsThread.join();
 
         tree.removeFile(key);
         std::cout << "Benchmark took "
