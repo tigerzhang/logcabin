@@ -15,6 +15,7 @@
  */
 
 #include <memory>
+#include <redis3m/include/redis3m/connection.h>
 
 #include "Client/SessionManager.h"
 #include "Core/Config.h"
@@ -22,6 +23,7 @@
 #include "Event/Loop.h"
 #include "Event/Signal.h"
 #include "Server/ServerStats.h"
+#include "StateMachineRedis.h"
 
 #ifndef LOGCABIN_SERVER_GLOBALS_H
 #define LOGCABIN_SERVER_GLOBALS_H
@@ -205,7 +207,7 @@ class Globals {
     /**
      * State machine used to process client requests.
      */
-    std::shared_ptr<Server::StateMachineRocksdb> stateMachine;
+    std::shared_ptr<Server::StateMachineRedis> stateMachine;
 
     std::shared_ptr<Server::StateMachineRocksdb> stateMachineRocksdb;
 
@@ -235,6 +237,8 @@ private:
     // Globals is non-copyable.
     Globals(const Globals&) = delete;
     Globals& operator=(const Globals&) = delete;
+
+    redis3m::connection::ptr_t redisConnection;
 
 }; // class Globals
 

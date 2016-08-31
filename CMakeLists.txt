@@ -148,6 +148,8 @@ set(SOURCE_FILES
     Server/ServerStatsTest.cc
     Server/StateMachine.cc
     Server/StateMachine.h
+    Server/StateMachineBase.cc
+    Server/StateMachineBase.h
     Server/StateMachineRocksdb.cc
     Server/StateMachineRocksdb.h
     Server/StateMachineTest.cc
@@ -181,7 +183,7 @@ set(SOURCE_FILES
     Tree/ProtoBufTest.cc
     Tree/Tree.cc
     Tree/Tree.h
-    Tree/TreeTest.cc)
+    Tree/TreeTest.cc Server/StateMachineRedis.cc Server/StateMachineRedis.h)
 
 add_executable(logcabin ${SOURCE_FILES})
-include_directories(. ./include gtest/include)
+include_directories(. ./include gtest/include redis3m/include)

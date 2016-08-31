@@ -47,7 +47,8 @@ testrunner = env.Program("test",
                  "#Storage",
                  "#Server",
              ], variant_dir='#build')),
-            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy", "z", "bz2", "lz4", "jemalloc"],
+            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy", "z", "bz2", "lz4", "jemalloc", "redis3m"],
+            LIBPATH = ['#/redis3m'],
             CPPPATH = env["CPPPATH"] + ["#gtest/include"],
             # -fno-access-control allows tests to access private members
             CXXFLAGS = env["CXXFLAGS"] + ["-fno-access-control"])

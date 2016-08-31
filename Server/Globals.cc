@@ -27,6 +27,9 @@
 #include "Server/RaftService.h"
 #include "Server/StateMachine.h"
 #include "Server/StateMachineRocksdb.h"
+#include "StateMachineRedis.h"
+
+#include <redis3m/redis3m.hpp>
 
 namespace LogCabin {
 namespace Server {
@@ -177,8 +180,19 @@ Globals::init()
         raft->init();
     }
 
+//    if (!stateMachine) {
+//        stateMachine.reset(new StateMachineRocksdb(raft, config, *this));
+//    }
+
     if (!stateMachine) {
-        stateMachine.reset(new StateMachineRocksdb(raft, config, *this));
+        NOTICE("Connecting redis...");
+        redisConnection = redis3m::connection::create();
+        assert(redisConnection.get() != NULL);
+        redis3m::reply reply = redisConnection->run(redis3m::command("PING"));
+        NOTICE("Ping redis: %s", reply.str().c_str());
+        void *conn = (void *)redisConnection.get();
+        stateMachine.reset(new StateMachineRedis(raft, config, *this,
+                                                 conn));
     }
 
 //	if (!stateMachineRocksdb) {

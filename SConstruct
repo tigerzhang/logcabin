@@ -106,6 +106,7 @@ if (env['CXX_FAMILY'] == 'gcc' and
 
 if env['CXX_FAMILY'] == 'gcc':
     env.Prepend(CXXFLAGS = [
+    "-ggdb3",
         "-Wall",
         "-Wextra",
         "-Wcast-align",
@@ -196,6 +197,7 @@ if env["VERBOSE"] == "0":
 
 env.Append(CPPPATH = '#')
 env.Append(CPPPATH = '#/include')
+env.Append(CPPPATH = '#/redis3m/include')
 
 # Define protocol buffers builder to simplify SConstruct files
 def Protobuf(env, source):
@@ -260,6 +262,11 @@ clientlib = env.StaticLibrary("build/logcabin",
 env.Default(clientlib)
 
 lib = File("/usr/local/lib/librocksdb.a")
+libredis3m = File("/home/parallels/logcabin/redis3m/libredis3m.a")
+liblz4 = File("/usr/lib/x86_64-linux-gnu/liblz4.a")
+libprotobuf = File("/usr/lib/x86_64-linux-gnu/libprotobuf.a")
+libcryptopp = File("/usr/lib/libcryptopp.a")
+libhiredis = File("/usr/lib/x86_64-linux-gnu/libhiredis.a")
 
 daemon = env.Program("build/LogCabin",
             (["build/Server/Main.cc"] +
@@ -271,7 +278,8 @@ daemon = env.Program("build/LogCabin",
              object_files['RPC'] +
              object_files['Event'] +
              object_files['Core']),
-            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy", "z", "bz2", "lz4", "jemalloc"])
+            LIBS = [lib, libredis3m, liblz4, libprotobuf, libcryptopp, libhiredis, "pthread", "rt", "snappy", "z", "bz2", "jemalloc",
+            ])
 env.Default(daemon)
 
 storageTool = env.Program("build/Storage/Tool",
@@ -284,7 +292,9 @@ storageTool = env.Program("build/Storage/Tool",
              object_files['Tree'] +
              object_files['Protocol'] +
              object_files['Core']),
-            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy","z", "bz2", "lz4", "jemalloc"])
+            LIBS = [lib, libredis3m, "pthread", "protobuf", "rt", "cryptopp", "snappy","z", "bz2", "lz4", "jemalloc",
+            "hiredis"],
+            LIBPATH = ["/home/parallels/logcabin/redis3m"])
 env.Default(storageTool)
 
 # Create empty directory so that it can be installed to /var/log/logcabin

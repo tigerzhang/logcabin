@@ -14,13 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <cstdio>
-#include <string>
-
-#include "rocksdb/db.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/options.h"
-
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -33,9 +26,10 @@
 #include "Core/Mutex.h"
 #include "Core/Time.h"
 #include "Tree/Tree.h"
+#include "RaftConsensus.h"
 
-#ifndef LOGCABIN_SERVER_STATEMACHINEROCKSDB_H
-#define LOGCABIN_SERVER_STATEMACHINEROCKSDB_H
+#ifndef LOGCABIN_SERVER_STATEMACHINEBASE_H
+#define LOGCABIN_SERVER_STATEMACHINEBASE_H
 
 namespace LogCabin {
 namespace Server {
@@ -53,10 +47,10 @@ class RaftConsensus;
  * - Version 2 added the CloseSession command, which clients can use when they
  *   gracefully shut down.
  */
-class StateMachineRocksdb {
+class StateMachineBase {
   public:
-    typedef Protocol::Client::StateMachineCommand Command;
-    typedef Protocol::Client::StateMachineQuery Query;
+    typedef LogCabin::Protocol::Client::StateMachineCommand Command;
+    typedef LogCabin::Protocol::Client::StateMachineQuery Query;
 
     enum {
         /**
@@ -72,10 +66,10 @@ class StateMachineRocksdb {
     };
 
 
-    StateMachineRocksdb(std::shared_ptr<RaftConsensus> consensus,
+    StateMachineBase(std::shared_ptr<RaftConsensus> consensus,
                  Core::Config& config,
-                 Globals& globals);
-    ~StateMachineRocksdb();
+                 Globals& globals, void *kvstore_);
+    ~StateMachineBase();
 
     /**
      * Called by ClientService to execute read-only queries on the state
@@ -534,16 +528,15 @@ class StateMachineRocksdb {
      */
     std::thread snapshotWatchdogThread;
 
-    std::unique_ptr<rocksdb::DB> rdb;
-
-    void openStateMachineDb();
-
 public:
-    rocksdb::Status putRdb(const std::string& key, const std::string& value);
-    rocksdb::Status getRdb(const std::string& key, std::string* value) const;
+    void *kvstore;
+//    virtual int initKVStore() = 0;
+
+    virtual int put(const std::string &key, const std::string &value) = 0;
+    virtual int get(const std::string &key, std::string *value) const = 0;
 };
 
 } // namespace LogCabin::Server
 } // namespace LogCabin
 
-#endif // LOGCABIN_SERVER_STATEMACHINEROCKSDB_H
+#endif
