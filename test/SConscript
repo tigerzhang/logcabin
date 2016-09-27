@@ -25,7 +25,8 @@ def GetTestFiles(src_dirs, variant_dir):
                                  variant_dir=variant_dir)
                     for src_dir in src_dirs])
 
-lib = File("/usr/local/lib/librocksdb.a")
+lib = File("#/rocksdb/librocksdb.a")
+libredis3m = File("#/redis3m/build/libredis3m.a")
 
 testrunner = env.Program("test",
             (["TestRunner.cc", "gtest-all.o"] +
@@ -47,7 +48,7 @@ testrunner = env.Program("test",
                  "#Storage",
                  "#Server",
              ], variant_dir='#build')),
-            LIBS = [lib, "pthread", "protobuf", "rt", "cryptopp", "snappy", "z", "bz2", "lz4", "jemalloc", "redis3m"],
+            LIBS = [lib, libredis3m, "pthread", "protobuf", "rt", "cryptopp", "snappy", "z", "bz2", "lz4", "jemalloc", "hiredis"],
             LIBPATH = ['#/redis3m'],
             CPPPATH = env["CPPPATH"] + ["#gtest/include"],
             # -fno-access-control allows tests to access private members

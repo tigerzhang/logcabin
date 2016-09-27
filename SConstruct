@@ -197,6 +197,7 @@ if env["VERBOSE"] == "0":
 
 env.Append(CPPPATH = '#')
 env.Append(CPPPATH = '#/include')
+env.Append(CPPPATH = '#/rocksdb/include')
 env.Append(CPPPATH = '#/redis3m/include')
 
 # Define protocol buffers builder to simplify SConstruct files
@@ -261,8 +262,8 @@ clientlib = env.StaticLibrary("build/logcabin",
                    object_files['Core']))
 env.Default(clientlib)
 
-lib = File("/usr/local/lib/librocksdb.a")
-libredis3m = File("/home/parallels/logcabin/redis3m/libredis3m.a")
+lib = File("rocksdb/librocksdb.a")
+libredis3m = File("#/redis3m/build/libredis3m.a")
 liblz4 = File("/usr/lib/x86_64-linux-gnu/liblz4.a")
 libprotobuf = File("/usr/lib/x86_64-linux-gnu/libprotobuf.a")
 libcryptopp = File("/usr/lib/libcryptopp.a")
@@ -278,7 +279,7 @@ daemon = env.Program("build/LogCabin",
              object_files['RPC'] +
              object_files['Event'] +
              object_files['Core']),
-            LIBS = [lib, libredis3m, liblz4, libprotobuf, libcryptopp, libhiredis, "pthread", "rt", "snappy", "z", "bz2", "jemalloc",
+            LIBS = [lib, libredis3m, liblz4, libprotobuf, libcryptopp, libhiredis, "pthread", "rt", "snappy", "z", "bz2", "jemalloc", "hiredis"
             ])
 env.Default(daemon)
 
@@ -292,9 +293,7 @@ storageTool = env.Program("build/Storage/Tool",
              object_files['Tree'] +
              object_files['Protocol'] +
              object_files['Core']),
-            LIBS = [lib, libredis3m, "pthread", "protobuf", "rt", "cryptopp", "snappy","z", "bz2", "lz4", "jemalloc",
-            "hiredis"],
-            LIBPATH = ["/home/parallels/logcabin/redis3m"])
+            LIBS = [lib, libredis3m, "pthread", "protobuf", "rt", "cryptopp", "snappy","z", "bz2", "lz4", "jemalloc", "hiredis"])
 env.Default(storageTool)
 
 # Create empty directory so that it can be installed to /var/log/logcabin
