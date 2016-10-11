@@ -32,6 +32,9 @@
 #include <thread>
 #include <unistd.h>
 #include <algorithm>
+#include <string>
+#include <sstream>
+#include <vector>
 
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
@@ -52,6 +55,22 @@ uint64_t timeNanos(void);
 std::vector<uint64_t> stats;
 std::mutex statsMutex;
 
+void split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}
+
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
+}
+
     /**
  * Parses argv for the main function.
  */
@@ -60,7 +79,8 @@ class OptionParser {
     OptionParser(int& argc, char**& argv)
         : argc(argc)
         , argv(argv)
-        , cluster("logcabin:5254")
+        , cluster("127.0.0.1:5254")
+        , clusterEx("")
         , logPolicy("")
         , size(1024)
         , writers(1)
@@ -70,6 +90,7 @@ class OptionParser {
         while (true) {
             static struct option longOptions[] = {
                {"cluster",  required_argument, NULL, 'c'},
+               {"clusterex", required_argument, NULL, 'E'},
                {"help",  no_argument, NULL, 'h'},
                {"size",  required_argument, NULL, 's'},
                {"threads",  required_argument, NULL, 't'},
@@ -79,7 +100,7 @@ class OptionParser {
                {"verbosity",  required_argument, NULL, 256},
                {0, 0, 0, 0}
             };
-            int c = getopt_long(argc, argv, "c:hs:t:w:v", longOptions, NULL);
+            int c = getopt_long(argc, argv, "c:hs:t:w:vE:", longOptions, NULL);
 
             // Detect the end of the options.
             if (c == -1)
@@ -109,6 +130,9 @@ class OptionParser {
                     break;
                 case 256:
                     logPolicy = optarg;
+                    break;
+                case 'E':
+                    clusterEx = optarg;
                     break;
                 case '?':
                 default:
@@ -146,7 +170,11 @@ class OptionParser {
             << "servers, comma-separated"
             << std::endl
             << "                                         "
-            << "[default: logcabin:5254]"
+            << "[default: 127.0.0.1:5254]"
+            << std::endl
+
+            << "  -E <addresses>, --clusterex=<addresses>"
+            << "other servers"
             << std::endl
 
             << "  -h, --help              "
@@ -193,6 +221,7 @@ class OptionParser {
     int& argc;
     char**& argv;
     std::string cluster;
+    std::string clusterEx;
     std::string logPolicy;
     uint64_t size;
     uint64_t writers;
@@ -314,19 +343,33 @@ main(int argc, char** argv)
         LogCabin::Client::Debug::setLogPolicy(
             LogCabin::Client::Debug::logPolicyFromString(
                 options.logPolicy));
+
+        // std::vector<Cluster> clusters;
+        std::vector<Tree*> trees;
+        std::vector<std::string> clusters_opt = split(options.clusterEx, ',');
+        for(auto const& cluster_opt: clusters_opt) {
+	    Cluster *cluster = new Cluster(cluster_opt);
+	    Tree *tree = new Tree(cluster->getTree());
+            trees.push_back(tree);
+        }
+
         Cluster cluster = Cluster(options.cluster);
         Tree tree = cluster.getTree();
+
+        uint64_t writers_count = options.writers;
+        writers_count += clusters_opt.size() * options.writers;
 
         std::string key("/bench");
         std::string value(options.size, 'v');
 
         uint64_t startNanos = timeNanos();
         std::atomic<bool> exit(false);
-        std::vector<uint64_t> writesDonePerThread(options.writers);
+        std::vector<uint64_t> writesDonePerThread(writers_count);
         uint64_t totalWritesDone = 0;
         std::vector<std::thread> threads;
         std::thread timer(timerThreadMain, options.timeout, std::ref(exit));
-        for (uint64_t i = 0; i < options.writers; ++i) {
+        uint64_t i = 0;
+        for (i = 0; i < options.writers; ++i) {
             threads.emplace_back(writeThreadMain, i, std::ref(options),
                                  tree, std::ref(key), std::ref(value),
                                  std::ref(exit),
@@ -334,7 +377,19 @@ main(int argc, char** argv)
         }
 
         std::thread statsThread(statsThreadMain, std::ref(exit));
-        for (uint64_t i = 0; i < options.writers; ++i) {
+
+        for (auto const& tree: trees) {
+            for (uint64_t j = 0; j < options.writers; ++j) {
+                threads.emplace_back(writeThreadMain, i, std::ref(options),
+                                     *tree, std::ref(key), std::ref(value),
+                                     std::ref(exit),
+                                     std::ref(writesDonePerThread.at(i)));
+                i++;
+            }
+
+        }
+
+        for (i = 0; i < writers_count; ++i) {
             threads.at(i).join();
             totalWritesDone += writesDonePerThread.at(i);
         }
@@ -344,6 +399,10 @@ main(int argc, char** argv)
         statsThread.join();
 
         tree.removeFile(key);
+        for (auto const& tree: trees) {
+            tree->removeFile(key);
+            delete tree;
+        }
         std::cout << "Benchmark took "
                   << static_cast<double>(endNanos - startNanos) / 1e6
                   << " ms to write "
