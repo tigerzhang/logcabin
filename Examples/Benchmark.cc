@@ -60,7 +60,8 @@ class OptionParser {
     OptionParser(int& argc, char**& argv)
         : argc(argc)
         , argv(argv)
-        , cluster("logcabin:5254")
+        , cluster("127.0.0.1:5254")
+        , cluster2("")
         , logPolicy("")
         , size(1024)
         , writers(1)
@@ -70,6 +71,7 @@ class OptionParser {
         while (true) {
             static struct option longOptions[] = {
                {"cluster",  required_argument, NULL, 'c'},
+               {"cluster2", required_argument, NULL, 'C'},
                {"help",  no_argument, NULL, 'h'},
                {"size",  required_argument, NULL, 's'},
                {"threads",  required_argument, NULL, 't'},
@@ -79,7 +81,7 @@ class OptionParser {
                {"verbosity",  required_argument, NULL, 256},
                {0, 0, 0, 0}
             };
-            int c = getopt_long(argc, argv, "c:hs:t:w:v", longOptions, NULL);
+            int c = getopt_long(argc, argv, "c:hs:t:w:vC:", longOptions, NULL);
 
             // Detect the end of the options.
             if (c == -1)
@@ -109,6 +111,9 @@ class OptionParser {
                     break;
                 case 256:
                     logPolicy = optarg;
+                    break;
+                case 'C':
+                    cluster2 = optarg;
                     break;
                 case '?':
                 default:
@@ -146,7 +151,11 @@ class OptionParser {
             << "servers, comma-separated"
             << std::endl
             << "                                         "
-            << "[default: logcabin:5254]"
+            << "[default: 127.0.0.1:5254]"
+            << std::endl
+
+            << "  -C <address>, --cluster2=<address>     "
+            << "second server"
             << std::endl
 
             << "  -h, --help              "
@@ -193,6 +202,7 @@ class OptionParser {
     int& argc;
     char**& argv;
     std::string cluster;
+    std::string cluster2;
     std::string logPolicy;
     uint64_t size;
     uint64_t writers;
@@ -317,12 +327,24 @@ main(int argc, char** argv)
         Cluster cluster = Cluster(options.cluster);
         Tree tree = cluster.getTree();
 
+        bool has_cluster2 = options.cluster2 == "" ? false : true;
+        Cluster *cluster2 = NULL;
+        Tree *tree2 = NULL;
+        if (has_cluster2) {
+            cluster2 = new Cluster(options.cluster2);
+            tree2 = new Tree(cluster2->getTree());
+        }
+
+        uint64_t writers_count = has_cluster2
+                                 ? options.writers * 2
+                                 : options.writers;
+
         std::string key("/bench");
         std::string value(options.size, 'v');
 
         uint64_t startNanos = timeNanos();
         std::atomic<bool> exit(false);
-        std::vector<uint64_t> writesDonePerThread(options.writers);
+        std::vector<uint64_t> writesDonePerThread(writers_count);
         uint64_t totalWritesDone = 0;
         std::vector<std::thread> threads;
         std::thread timer(timerThreadMain, options.timeout, std::ref(exit));
@@ -334,7 +356,17 @@ main(int argc, char** argv)
         }
 
         std::thread statsThread(statsThreadMain, std::ref(exit));
-        for (uint64_t i = 0; i < options.writers; ++i) {
+
+        if (has_cluster2) {
+            for (uint64_t i = 0; i < options.writers; ++i) {
+                threads.emplace_back(writeThreadMain, i, std::ref(options),
+                                     *tree2, std::ref(key), std::ref(value),
+                                     std::ref(exit),
+                                     std::ref(writesDonePerThread.at(i)));
+            }
+
+        }
+        for (uint64_t i = 0; i < writers_count; ++i) {
             threads.at(i).join();
             totalWritesDone += writesDonePerThread.at(i);
         }
@@ -344,6 +376,7 @@ main(int argc, char** argv)
         statsThread.join();
 
         tree.removeFile(key);
+        if (tree2) tree2->removeFile(key);
         std::cout << "Benchmark took "
                   << static_cast<double>(endNanos - startNanos) / 1e6
                   << " ms to write "
