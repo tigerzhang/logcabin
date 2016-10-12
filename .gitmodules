@@ -6,5 +6,5 @@
 	path = rocksdb
 	url = https://github.com/facebook/rocksdb
 [submodule "redis3m"]
-    path = redis3m
-    url = https://github.com/luca3m/redis3m
+	path = redis3m
+	url = https://github.com/luca3m/redis3m.git

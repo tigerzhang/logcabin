@@ -358,7 +358,7 @@ main(int argc, char** argv)
         std::thread statsThread(statsThreadMain, std::ref(exit));
 
         if (has_cluster2) {
-            for (uint64_t i = 0; i < options.writers; ++i) {
+            for (uint64_t i = options.writers; i < writers_count; ++i) {
                 threads.emplace_back(writeThreadMain, i, std::ref(options),
                                      *tree2, std::ref(key), std::ref(value),
                                      std::ref(exit),
