@@ -38,6 +38,8 @@ enum class Command {
     WRITE,
     READ,
     REMOVE,
+    SUBSCRIBE,
+    UNSUBSCRIBE
 };
 
 /**
@@ -138,6 +140,10 @@ class OptionParser {
         } else if (cmdStr == "remove" || cmdStr == "rm" ||
                    cmdStr == "removeFile") {
             command = Command::REMOVE;
+        } else if (cmdStr == "sub" || cmdStr == "subscribe") {
+            command = Command::SUBSCRIBE;
+        } else if (cmdStr == "unsub" || cmdStr == "unsubscribe") {
+            command = Command ::UNSUBSCRIBE;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();

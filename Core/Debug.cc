@@ -165,6 +165,7 @@ logLevelToString(LogLevel level)
         case LogLevel::WARNING: return "WARNING";
         case LogLevel::NOTICE:  return "NOTICE";
         case LogLevel::VERBOSE: return "VERBOSE";
+        case LogLevel::VVERBOSE: return "VVERBOSE";
     }
     log(LogLevel::ERROR, __FILE__, __LINE__, __FUNCTION__,
         Core::StringUtil::format("%d is not a valid log level",
@@ -184,6 +185,7 @@ logLevelFromString(const std::string& level)
     if (strcasecmp(level.c_str(), "WARNING") == 0) return LogLevel::WARNING;
     if (strcasecmp(level.c_str(), "NOTICE")  == 0)  return LogLevel::NOTICE;
     if (strcasecmp(level.c_str(), "VERBOSE") == 0) return LogLevel::VERBOSE;
+    if (strcasecmp(level.c_str(), "VVERBOSE") == 0) return LogLevel::VVERBOSE;
     log(LogLevel::ERROR, __FILE__, __LINE__, __FUNCTION__,
         Core::StringUtil::format("'%s' is not a valid log level",
                                  level.c_str()).c_str());

@@ -69,7 +69,7 @@ class StateMachineBase {
     StateMachineBase(std::shared_ptr<RaftConsensus> consensus,
                  Core::Config& config,
                  Globals& globals, void *kvstore_);
-    ~StateMachineBase();
+    virtual ~StateMachineBase();
 
     /**
      * Called by ClientService to execute read-only queries on the state

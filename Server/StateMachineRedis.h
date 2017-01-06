@@ -21,11 +21,12 @@ public:
     StateMachineRedis(std::shared_ptr<RaftConsensus> consensus,
     Core::Config& config,
             Globals& globals, void *kvstore);
+    virtual ~StateMachineRedis() {}
 
 
-    virtual int put(const std::string &key, const std::string &value);
+    int put(const std::string &key, const std::string &value);
 
-    virtual int get(const std::string &key, std::string *value) const;
+    int get(const std::string &key, std::string *value) const;
 
 //    int initKVStore();
 
