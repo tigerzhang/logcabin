@@ -23,6 +23,9 @@
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
 #include <LogCabin/Util.h>
+#include <zconf.h>
+
+#include "../RedisServer/RedisServer.h"
 
 namespace {
 
@@ -50,7 +53,7 @@ class OptionParser {
     OptionParser(int& argc, char**& argv)
         : argc(argc)
         , argv(argv)
-        , cluster("logcabin:5254")
+        , cluster("localhost:5254")
         , command()
         , condition()
         , dir()
@@ -220,7 +223,7 @@ class OptionParser {
             << "servers, comma-separated"
             << std::endl
             << "                                         "
-            << "[default: logcabin:5254]"
+            << "[default: localhost:5254]"
             << std::endl
 
             << "  -d <path>, --dir=<path>        "
@@ -368,21 +371,38 @@ main(int argc, char** argv)
                 tree.writeEx(path, readStdin());
                 break;
             case Command::READ: {
-                std::string contents = tree.readEx(path);
-                std::cout << contents;
-                if (contents.empty() ||
-                    contents.at(contents.size() - 1) != '\n') {
-                    std::cout << std::endl;
-                } else {
-                    std::cout.flush();
+                try {
+                    std::string contents = tree.readEx(path);
+                    std::cout << contents;
+                    if (contents.empty() ||
+                        contents.at(contents.size() - 1) != '\n') {
+                        std::cout << std::endl;
+                    } else {
+                        std::cout.flush();
+                    }
+                } catch (const LogCabin::Client::Exception& e) {
+                    std::cerr << "LogCabin::Client::Exception: "
+                              << e.what()
+                              << std::endl;
                 }
+
                 break;
             }
             case Command::REMOVE:
                 tree.removeFileEx(path);
                 break;
         }
-        return 0;
+//        return 0;
+
+        RedisServer redis(tree);
+        redis.Init();
+        std::string pass = "shahe22f";
+        redis.SetPassword(pass);
+        redis.Start("127.0.0.1", 6479);
+
+        while (1) {
+            usleep(1000);
+        }
 
     } catch (const LogCabin::Client::Exception& e) {
         std::cerr << "Exiting due to LogCabin::Client::Exception: "
@@ -390,4 +410,7 @@ main(int argc, char** argv)
                   << std::endl;
         exit(1);
     }
+
+
+    return 0;
 }
