@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <thread>
 
-#include "build/Protocol/Client.pb.h"
+#include "Client.pb.h"
 #include "include/LogCabin/Debug.h"
 #include "Core/Buffer.h"
 #include "Core/ProtoBuf.h"

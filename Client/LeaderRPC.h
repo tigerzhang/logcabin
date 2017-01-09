@@ -19,7 +19,7 @@
 #include <memory>
 #include <mutex>
 
-#include "build/Protocol/Client.pb.h"
+#include "Client.pb.h"
 #include "Client/SessionManager.h"
 #include "Core/ConditionVariable.h"
 #include "RPC/Address.h"

@@ -11,3 +11,6 @@
 /smoketeststorage
 /storage
 .idea
+.gdbinit
+Makefile
+data

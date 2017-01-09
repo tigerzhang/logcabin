@@ -18,7 +18,7 @@
 #include <gtest/gtest.h>
 #include <sys/stat.h>
 
-#include "build/Protocol/Raft.pb.h"
+#include "Raft.pb.h"
 #include "Core/ProtoBuf.h"
 #include "Core/STLUtil.h"
 #include "Core/StringUtil.h"

@@ -3,6 +3,8 @@ project(logcabin)
 
 find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
+set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/Protocol)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(SERVER_FILES "Server/ClientService.cc"
@@ -27,9 +29,11 @@ set(STORAGE_FILES "Storage/FilesystemUtil.cc"
     "Storage/SimpleFileLog.cc"
     "Storage/SnapshotFile.cc"
 )
+file(GLOB STORAGE_PROTO_FILES "Storage/*.proto")
 set(TREE_FILES "Tree/ProtoBuf.cc"
     "Tree/Tree.cc"
 )
+file(GLOB TREE_PROTO_FILES "Tree/*.proto")
 set(CLIENT_FILES "Client/Backoff.cc"
     "Client/Client.cc"
     "Client/ClientImpl.cc"
@@ -70,13 +74,27 @@ set(CORE_FILES "Core/Buffer.cc"
     "Core/Util.cc"
 )
 
+set(REDISSERVER_FILES
+        "RedisServer/RedisServerLib.cc"
+        "RedisServer/sds.c"
+        )
+
 PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTOCOL_FILES})
 PROTOBUF_GENERATE_CPP(ServerProtoSources ServerProtoHeaders ${SERVER_PROTO_FILES})
+PROTOBUF_GENERATE_CPP(StorageProtoSources StorageProtoHeaders ${STORAGE_PROTO_FILES})
+PROTOBUF_GENERATE_CPP(TreeProtoSources TreeProtoHeaders ${TREE_PROTO_FILES})
+
+set(REDIS_CPP_FILES
+        "redis_cpp/src/helpers.cpp"
+        "redis_cpp/src/redis_interface.cpp"
+        "redis_cpp/src/redis_protocol/resp_protocol.cpp")
 
 set(SOURCE_FILES
     "Server/Main.cc"
     ${SERVER_FILES}
     ${ServerProtoSources}
+    ${StorageProtoSources}
+    ${TreeProtoSources}
     ${STORAGE_FILES}
     ${TREE_FILES}
     ${CLIENT_FILES}
@@ -84,10 +102,42 @@ set(SOURCE_FILES
     ${RPC_FILES}
     ${EVENT_FILES}
     ${CORE_FILES}
-        Server/utils.cc Server/utils.h)
+    Server/utils.cc Server/utils.h
+    ${REDISSERVER_FILES}
+        ${REDIS_CPP_FILES})
 
-set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a lz4 protobuf cryptopp hiredis
-        pthread rt snappy z bz2 jemalloc boost)
-add_executable(logcabin ${SOURCE_FILES})
-target_link_libraries(logcabin ${LIBS})
-include_directories(. ./include gtest/include redis3m/include)
+set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a
+        lz4 protobuf cryptopp hiredis
+        pthread rt snappy z bz2 jemalloc event boost_system)
+add_executable(LogCabin ${SOURCE_FILES})
+target_link_libraries(LogCabin ${LIBS})
+include_directories(${CMAKE_CURRENT_BINARY_DIR} ./build . ./include gtest/include redis3m/include)
+
+add_library(logcabin STATIC
+        ${CLIENT_FILES}
+        ${TREE_FILES}
+        ${ProtoSources}
+        ${RPC_FILES}
+        ${EVENT_FILES}
+        ${CORE_FILES}
+        ${ProtoSources}
+        ${ServerProtoSources}
+        ${StorageProtoSources}
+        ${TreeProtoSources})
+
+add_executable(Benchmark ${CMAKE_SOURCE_DIR}/Examples/Benchmark.cc)
+target_link_libraries(Benchmark logcabin ${LIBS})
+add_executable(FailoverTest ${CMAKE_SOURCE_DIR}/Examples/FailoverTest.cc)
+target_link_libraries(FailoverTest logcabin ${LIBS})
+add_executable(HelloWorld ${CMAKE_SOURCE_DIR}/Examples/HelloWorld.cc)
+target_link_libraries(HelloWorld logcabin ${LIBS})
+add_executable(Reconfigure ${CMAKE_SOURCE_DIR}/Examples/Reconfigure.cc)
+target_link_libraries(Reconfigure logcabin ${LIBS})
+add_executable(ReconfigureTest ${CMAKE_SOURCE_DIR}/Examples/ReconfigureTest.cc)
+target_link_libraries(ReconfigureTest logcabin ${LIBS})
+add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc)
+target_link_libraries(SmokeTest logcabin ${LIBS})
+add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FILES})
+target_link_libraries(TreeOps logcabin ${LIBS})
+add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
+target_link_libraries(ServerControl logcabin ${LIBS})

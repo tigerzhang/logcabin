@@ -21,7 +21,7 @@
 
 #include "Client/ClientImpl.h"
 #include "Core/ProtoBuf.h"
-#include "build/Protocol/ServerControl.pb.h"
+#include "ServerControl.pb.h"
 #include "include/LogCabin/Client.h"
 #include "include/LogCabin/Debug.h"
 #include "include/LogCabin/Util.h"
