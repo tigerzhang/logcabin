@@ -14,6 +14,7 @@
  */
 
 #include "RPC/Service.h"
+#include "ServerControl.pb.h"
 
 #ifndef LOGCABIN_SERVER_CONTROLSERVICE_H
 #define LOGCABIN_SERVER_CONTROLSERVICE_H
@@ -74,6 +75,9 @@ class ControlService : public RPC::Service {
     // ControlService is non-copyable.
     ControlService(const ControlService&) = delete;
     ControlService& operator=(const ControlService&) = delete;
+
+    void getInstallSnapshotProto(RPC::ServerRPC rpc, uint64_t next_log_id,
+                                 Protocol::ServerControl::SnapshotControl::Response& response);
 }; // class ControlService
 
 } // namespace LogCabin::Server

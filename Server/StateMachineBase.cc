@@ -585,7 +585,8 @@ StateMachineBase::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     }
 
     // Load the tree's state
-    tree.loadSnapshot(stream);
+//    tree.loadSnapshot(stream);
+    loadSnapshotLoadData(stream);
 }
 
 void
@@ -796,7 +797,8 @@ StateMachineBase::takeSnapshot(uint64_t lastIncludedIndex,
             writer->writeMessage(header);
         }
         // Then the Tree itself (this one is potentially large)
-        tree.dumpSnapshot(*writer);
+//        tree.dumpSnapshot(*writer);
+        takeSnapshotWriteData(lastIncludedIndex, *writer);
 
         // Flush the changes to the snapshot file before exiting.
         writer->flushToOS();

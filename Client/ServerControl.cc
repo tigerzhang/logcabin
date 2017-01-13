@@ -340,6 +340,27 @@ class ServerControl {
             error(response.error());
     }
 
+    void SnapshotContrlDump(Proto::SnapshotControl::Request& request,
+                            Proto::SnapshotControl::Response& response) {
+        using Protocol::ServerControl::SnapshotCommand;
+        request.set_command(SnapshotCommand::DUMP_SNAPSHOT);
+        SnapshotControl(request, response);
+        if (response.has_error())
+            error(response.error());
+
+        if (response.has_installsnap_request()) {
+            LogCabin::Protocol::Raft::InstallSnapshot_Request req =
+                    response.installsnap_request();
+            std::cout << "server_id: " << req.server_id() << std::endl
+                      << "term: " << req.term() << std::endl
+                      << "last_snapshot_index: " << req.last_snapshot_index() << std::endl
+                      << "byte_offset: " << req.byte_offset() << std::endl
+                      << req.data().size() << " bytes: " << std::endl
+                      << "done: " << req.done() << std::endl
+                      << "version: " << req.version() << std::endl;
+        }
+    }
+
     ClientImpl clientImpl;
     std::string server;
     ClientImpl::TimePoint timeout;
@@ -463,6 +484,12 @@ main(int argc, char** argv)
                         error(response.error());
                     return 0;
                 }
+            } else if (options.at(1) == "dump") {
+                options.done();
+                Proto::SnapshotControl::Request request;
+                Proto::SnapshotControl::Response response;
+                server.SnapshotContrlDump(request, response);
+                return 0;
             }
         } else if (options.at(0) == "stats") {
             if (options.at(1) == "get") {
@@ -474,9 +501,10 @@ main(int argc, char** argv)
                 return 0;
             } else if (options.at(1) == "dump") {
                 options.done();
-                Proto::ServerStatsDump::Request request;
-                Proto::ServerStatsDump::Response response;
-                server.ServerStatsDump(request, response);
+                Proto::SnapshotControl::Request request;
+                Proto::SnapshotControl::Response response;
+                request.set_next_log_id(1);
+                server.SnapshotContrlDump(request, response);
                 return 0;
             }
         }

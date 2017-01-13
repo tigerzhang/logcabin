@@ -6,7 +6,7 @@ find_package(Protobuf REQUIRED)
 set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/Protocol)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3")
 set(SERVER_FILES "Server/ClientService.cc"
     "Server/ControlService.cc"
     "Server/Globals.cc"

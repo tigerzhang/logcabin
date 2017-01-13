@@ -248,5 +248,10 @@ ClientService::verifyRecipient(RPC::ServerRPC rpc)
     rpc.reply(response);
 }
 
+void ClientService::getLogEntries(RPC::ServerRPC rpc) {
+//    PRELUDE(GetLogEntries);
+
+}
+
 } // namespace LogCabin::Server
 } // namespace LogCabin

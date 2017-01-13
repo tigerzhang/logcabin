@@ -145,7 +145,7 @@ class StateMachineBase {
     void setInhibit(std::chrono::nanoseconds duration);
 
 
-  private:
+  protected:
     // forward declaration
     struct Session;
 
@@ -247,6 +247,11 @@ class StateMachineBase {
      */
     void takeSnapshot(uint64_t lastIncludedIndex,
                       std::unique_lock<Core::Mutex>& lockGuard);
+
+    virtual void takeSnapshotWriteData(uint64_t lastIncludedIndex,
+                                       Core::ProtoBuf::OutputStream& writer) = 0;
+
+    virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream) = 0;
 
     /**
      * Called to log a debug message if appropriate when the state machine

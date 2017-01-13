@@ -3033,5 +3033,17 @@ operator<<(std::ostream& os, RaftConsensus::State state)
     return os;
 }
 
+const Storage::Layout &RaftConsensus::getStorageLayout() const {
+    return storageLayout;
+}
+
+uint64_t RaftConsensus::getSOFT_RPC_SIZE_LIMIT() const {
+    return SOFT_RPC_SIZE_LIMIT;
+}
+
+uint64_t RaftConsensus::getLastSnapshotIndex() const {
+    return lastSnapshotIndex;
+}
+
 } // namespace LogCabin::Server
 } // namespace LogCabin
