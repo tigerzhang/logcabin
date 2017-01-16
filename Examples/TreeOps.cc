@@ -398,7 +398,9 @@ main(int argc, char** argv)
         redis.Init();
         std::string pass = "shahe22f";
         redis.SetPassword(pass);
-        redis.Start("127.0.0.1", 6479);
+        int port = 6479;
+        std::cout << "Listen port " << port << std::endl;
+        redis.Start("127.0.0.1", port);
 
         while (1) {
             usleep(1000);
