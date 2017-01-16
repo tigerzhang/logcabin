@@ -70,7 +70,6 @@ private:
         if (value == "") {
             SendNullReply(pConnector);
         } else {
-//            SendBulkReply(pConnector, value);
             SendRawReply(pConnector, value);
         }
         return;
