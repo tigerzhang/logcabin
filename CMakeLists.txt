@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
+add_definitions(-DROCKSDB_STATEMACHINE)
+
 find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
 set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}

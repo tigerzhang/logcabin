@@ -92,7 +92,6 @@ Globals::Globals()
     , serverId(~0UL)
     , raft()
     , stateMachine()
-        , stateMachineRocksdb()
     , controlService()
     , raftService()
     , clientService()
@@ -180,10 +179,14 @@ Globals::init()
         raft->init();
     }
 
-//    if (!stateMachine) {
-//        stateMachine.reset(new StateMachineRocksdb(raft, config, *this));
-//    }
+#ifdef ROCKSDB_STATEMACHINE
+    if (!stateMachine) {
+        std::unique_ptr<rocksdb::DB> rdb = StateMachineRocksdb::openStateMachineDb(*this);
+        stateMachine.reset(new StateMachineRocksdb(raft, config, *this, std::move(rdb)));
+    }
+#else
 
+#ifdef REDIS_STATEMACHINE
     if (!stateMachine) {
         NOTICE("Connecting redis...");
 //        redisConnection = redis3m::connection::create("localhost", 6579);
@@ -197,6 +200,9 @@ Globals::init()
         stateMachine.reset(new StateMachineRedis(raft, config, *this,
                                                  conn));
     }
+#endif
+
+#endif
 
 //	if (!stateMachineRocksdb) {
 //		stateMachineRocksdb.reset(new StateMachineRocksdb(raft, config, *this));
