@@ -19,8 +19,8 @@
 #include <thread>
 #include <unordered_map>
 
-#include "build/Protocol/Client.pb.h"
-#include "build/Server/SnapshotStateMachine.pb.h"
+#include "Client.pb.h"
+#include "SnapshotStateMachine.pb.h"
 #include "Core/ConditionVariable.h"
 #include "Core/Config.h"
 #include "Core/Mutex.h"
@@ -69,7 +69,7 @@ class StateMachineBase {
     StateMachineBase(std::shared_ptr<RaftConsensus> consensus,
                  Core::Config& config,
                  Globals& globals, void *kvstore_);
-    ~StateMachineBase();
+    virtual ~StateMachineBase();
 
     /**
      * Called by ClientService to execute read-only queries on the state
@@ -530,6 +530,9 @@ class StateMachineBase {
 
 public:
     void *kvstore;
+
+    std::string lastApplyResult;
+
 //    virtual int initKVStore() = 0;
 
     virtual int put(const std::string &key, const std::string &value) = 0;

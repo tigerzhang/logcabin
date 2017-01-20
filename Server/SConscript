@@ -11,7 +11,8 @@ src = [
     "StateMachine.cc",
     "StateMachineRocksdb.cc",
     "StateMachineBase.cc",
-    "StateMachineRedis.cc"
+    "StateMachineRedis.cc",
+    "utils.cc"
 ]
 object_files['Server'] = (env.StaticObject(src) +
                           env.Protobuf("SnapshotMetadata.proto") +

@@ -780,7 +780,9 @@ ClientImpl::write(const std::string& path,
     exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
-    return Result();
+    Result rpcresult;
+    rpcresult.error = std::move(response.error());
+    return rpcresult;
 }
 
 Result

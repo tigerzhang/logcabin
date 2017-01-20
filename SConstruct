@@ -240,6 +240,7 @@ SConscript('Storage/SConscript', variant_dir='build/Storage')
 SConscript('Server/SConscript', variant_dir='build/Server')
 SConscript('Examples/SConscript', variant_dir='build/Examples')
 SConscript('test/SConscript', variant_dir='build/test')
+SConscript('Redis/SConscript', variant_dir='build/Redis')
 
 # This function is taken from http://www.scons.org/wiki/PhonyTargets
 def PhonyTargets(env = None, **kw):
@@ -278,8 +279,9 @@ daemon = env.Program("build/LogCabin",
              object_files['Protocol'] +
              object_files['RPC'] +
              object_files['Event'] +
-             object_files['Core']),
-            LIBS = [lib, libredis3m, liblz4, libprotobuf, libcryptopp, libhiredis, "pthread", "rt", "snappy", "z", "bz2", "jemalloc", "hiredis"
+             object_files['Core'] +
+             ["Redis/RedisServer.cc", "Redis/RedisServerLib.cc", "Redis/sds.c"]),
+            LIBS = [lib, libredis3m, liblz4, libprotobuf, libcryptopp, libhiredis, "event", "pthread", "rt", "snappy", "z", "bz2", "jemalloc", "hiredis"
             ])
 env.Default(daemon)
 

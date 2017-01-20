@@ -19,7 +19,7 @@
 #include <memory>
 #include <thread>
 
-#include "build/Protocol/ServerStats.pb.h"
+#include "ServerStats.pb.h"
 
 #include "Core/Mutex.h"
 #include "Core/Time.h"

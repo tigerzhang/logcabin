@@ -1,0 +1,8 @@
+Import('env', 'object_files')
+
+src = [
+    "RedisServer.cc"
+    "RedisServerLib.cc",
+    "sds.cc",
+]
+object_files['Redis'] = env.StaticObject(src)

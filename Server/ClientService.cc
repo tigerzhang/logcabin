@@ -16,7 +16,7 @@
 
 #include <string.h>
 
-#include "build/Protocol/Client.pb.h"
+#include "Client.pb.h"
 #include "Core/Buffer.h"
 #include "Core/ProtoBuf.h"
 #include "Core/Time.h"
@@ -65,6 +65,9 @@ ClientService::handleRPC(RPC::ServerRPC rpc)
             break;
         case OpCode::STATE_MACHINE_QUERY:
             stateMachineQuery(std::move(rpc));
+            break;
+        case OpCode::GET_LOG_ENTRIES:
+            getLogEntries(std::move(rpc));
             break;
         default:
             WARNING("Received RPC request with unknown opcode %u: "
@@ -171,6 +174,10 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
         rpc.rejectInvalidRequest();
         return;
     }
+
+    response.mutable_tree()->set_error(globals.stateMachine->lastApplyResult);
+    VVERBOSE("lastApplyResult: %s", globals.stateMachine->lastApplyResult.c_str());
+
     rpc.reply(response);
 }
 

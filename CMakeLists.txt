@@ -1,189 +1,143 @@
 cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
+find_package(Protobuf REQUIRED)
+#find_package(JeMalloc REQUIRED)
+set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/Protocol)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(SERVER_FILES "Server/ClientService.cc"
+    "Server/ControlService.cc"
+    "Server/Globals.cc"
+    "Server/RaftConsensus.cc"
+    "Server/RaftConsensusInvariants.cc"
+    "Server/RaftService.cc"
+    "Server/ServerStats.cc"
+    "Server/StateMachine.cc"
+    "Server/StateMachineRocksdb.cc"
+    "Server/StateMachineBase.cc"
+    "Server/StateMachineRedis.cc"
+)
+file(GLOB SERVER_PROTO_FILES "Server/*.proto")
+set(STORAGE_FILES "Storage/FilesystemUtil.cc"
+    "Storage/Layout.cc"
+    "Storage/Log.cc"
+    "Storage/LogFactory.cc"
+    "Storage/MemoryLog.cc"
+    "Storage/SegmentedLog.cc"
+    "Storage/SimpleFileLog.cc"
+    "Storage/SnapshotFile.cc"
+)
+file(GLOB STORAGE_PROTO_FILES "Storage/*.proto")
+set(TREE_FILES "Tree/ProtoBuf.cc"
+    "Tree/Tree.cc"
+)
+file(GLOB TREE_PROTO_FILES "Tree/*.proto")
+set(CLIENT_FILES "Client/Backoff.cc"
+    "Client/Client.cc"
+    "Client/ClientImpl.cc"
+    "Client/LeaderRPC.cc"
+    "Client/MockClientImpl.cc"
+    "Client/SessionManager.cc"
+    "Client/Util.cc"
+)
+file(GLOB PROTOCOL_FILES "Protocol/*.proto")
+set(RPC_FILES "RPC/Address.cc"
+    "RPC/ClientRPC.cc"
+    "RPC/ClientSession.cc"
+    "RPC/MessageSocket.cc"
+    "RPC/OpaqueClientRPC.cc"
+    "RPC/OpaqueServer.cc"
+    "RPC/OpaqueServerRPC.cc"
+    "RPC/Protocol.cc"
+    "RPC/Server.cc"
+    "RPC/ServerRPC.cc"
+    "RPC/ThreadDispatchService.cc"
+)
+set(EVENT_FILES "Event/File.cc"
+    "Event/Loop.cc"
+    "Event/Signal.cc"
+    "Event/Timer.cc"
+)
+set(CORE_FILES "Core/Buffer.cc"
+    "Core/Checksum.cc"
+    "Core/ConditionVariable.cc"
+    "Core/Config.cc"
+    "Core/Debug.cc"
+    "Core/ProtoBuf.cc"
+    "Core/Random.cc"
+    "Core/RollingStat.cc"
+    "Core/ThreadId.cc"
+    "Core/Time.cc"
+    "Core/StringUtil.cc"
+    "Core/Util.cc"
+)
+
+set(REDISSERVER_FILES
+        "RedisServer/RedisServerLib.cc"
+        "RedisServer/sds.c"
+        )
+
+PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTOCOL_FILES})
+PROTOBUF_GENERATE_CPP(ServerProtoSources ServerProtoHeaders ${SERVER_PROTO_FILES})
+PROTOBUF_GENERATE_CPP(StorageProtoSources StorageProtoHeaders ${STORAGE_PROTO_FILES})
+PROTOBUF_GENERATE_CPP(TreeProtoSources TreeProtoHeaders ${TREE_PROTO_FILES})
+
+set(REDIS_CPP_FILES
+        "redis_cpp/src/helpers.cpp"
+        "redis_cpp/src/redis_interface.cpp"
+        "redis_cpp/src/redis_protocol/resp_protocol.cpp")
 
 set(SOURCE_FILES
-    Client/Backoff.cc
-    Client/Backoff.h
-    Client/BackoffTest.cc
-    Client/Client.cc
-    Client/ClientImpl.cc
-    Client/ClientImpl.h
-    Client/ClientImplTest.cc
-    Client/ClientTest.cc
-    Client/LeaderRPC.cc
-    Client/LeaderRPC.h
-    Client/LeaderRPCMock.cc
-    Client/LeaderRPCMock.h
-    Client/LeaderRPCTest.cc
-    Client/MockClientImpl.cc
-    Client/MockClientImpl.h
-    Client/MockClientImplTest.cc
-    Client/ServerControl.cc
-    Client/SessionManager.cc
-    Client/SessionManager.h
-    Client/SessionManagerTest.cc
-    Client/Util.cc
-    Client/UtilTest.cc
-    Core/Buffer.cc
-    Core/Buffer.h
-    Core/BufferTest.cc
-    Core/Checksum.cc
-    Core/Checksum.h
-    Core/ChecksumTest.cc
-    Core/CompatAtomic.h
-    Core/CompatHash.h
-    Core/CompatHashTest.cc
-    Core/ConditionVariable.cc
-    Core/ConditionVariable.h
-    Core/ConditionVariableTest.cc
-    Core/Config.cc
-    Core/Config.h
-    Core/ConfigTest.cc
-    Core/Debug.cc
-    Core/Debug.h
-    Core/DebugTest.cc
-    Core/Endian.h
-    Core/Mutex.h
-    Core/ProtoBuf.cc
-    Core/ProtoBuf.h
-    Core/ProtoBufTest.cc
-    Core/Random.cc
-    Core/Random.h
-    Core/RandomTest.cc
-    Core/RollingStat.cc
-    Core/RollingStat.h
-    Core/RollingStatTest.cc
-    Core/STLUtil.h
-    Core/STLUtilTest.cc
-    Core/StringUtil.cc
-    Core/StringUtil.h
-    Core/StringUtilTest.cc
-    Core/ThreadId.cc
-    Core/ThreadId.h
-    Core/ThreadIdTest.cc
-    Core/Time.cc
-    Core/Time.h
-    Core/TimeTest.cc
-    Core/Util.cc
-    Core/Util.h
-    Core/UtilTest.cc
-    Event/File.cc
-    Event/File.h
-    Event/FileTest.cc
-    Event/Loop.cc
-    Event/Loop.h
-    Event/LoopTest.cc
-    Event/Signal.cc
-    Event/Signal.h
-    Event/SignalTest.cc
-    Event/Timer.cc
-    Event/Timer.h
-    Event/TimerTest.cc
-    Examples/Benchmark.cc
-    Examples/FailoverTest.cc
-    Examples/HelloWorld.cc
-    Examples/Reconfigure.cc
-    Examples/ReconfigureTest.cc
-    Examples/SmokeTest.cc
-    Examples/TreeOps.cc
-    include/LogCabin/Client.h
-    include/LogCabin/Debug.h
-    include/LogCabin/Util.h
-    Protocol/Common.h
-    RPC/Address.cc
-    RPC/Address.h
-    RPC/AddressTest.cc
-    RPC/ClientRPC.cc
-    RPC/ClientRPC.h
-    RPC/ClientRPCTest.cc
-    RPC/ClientServerTest.cc
-    RPC/ClientSession.cc
-    RPC/ClientSession.h
-    RPC/ClientSessionTest.cc
-    RPC/MessageSocket.cc
-    RPC/MessageSocket.h
-    RPC/MessageSocketTest.cc
-    RPC/OpaqueClientRPC.cc
-    RPC/OpaqueClientRPC.h
-    RPC/OpaqueClientRPCTest.cc
-    RPC/OpaqueServer.cc
-    RPC/OpaqueServer.h
-    RPC/OpaqueServerRPC.cc
-    RPC/OpaqueServerRPC.h
-    RPC/OpaqueServerRPCTest.cc
-    RPC/OpaqueServerTest.cc
-    RPC/Protocol.cc
-    RPC/Protocol.h
-    RPC/Server.cc
-    RPC/Server.h
-    RPC/ServerRPC.cc
-    RPC/ServerRPC.h
-    RPC/ServerRPCTest.cc
-    RPC/ServerTest.cc
-    RPC/Service.h
-    RPC/ServiceMock.cc
-    RPC/ServiceMock.h
-    RPC/ThreadDispatchService.cc
-    RPC/ThreadDispatchService.h
-    RPC/ThreadDispatchServiceTest.cc
-    Server/ClientService.cc
-    Server/ClientService.h
-    Server/ClientServiceTest.cc
-    Server/ControlService.cc
-    Server/ControlService.h
-    Server/Globals.cc
-    Server/Globals.h
-    Server/GlobalsTest.cc
-    Server/Main.cc
-    Server/RaftConsensus.cc
-    Server/RaftConsensus.h
-    Server/RaftConsensusInvariants.cc
-    Server/RaftConsensusTest.cc
-    Server/RaftService.cc
-    Server/RaftService.h
-    Server/ServerStats.cc
-    Server/ServerStats.h
-    Server/ServerStatsTest.cc
-    Server/StateMachine.cc
-    Server/StateMachine.h
-    Server/StateMachineBase.cc
-    Server/StateMachineBase.h
-    Server/StateMachineRocksdb.cc
-    Server/StateMachineRocksdb.h
-    Server/StateMachineTest.cc
-    Storage/FilesystemUtil.cc
-    Storage/FilesystemUtil.h
-    Storage/FilesystemUtilTest.cc
-    Storage/Layout.cc
-    Storage/Layout.h
-    Storage/LayoutTest.cc
-    Storage/Log.cc
-    Storage/Log.h
-    Storage/LogFactory.cc
-    Storage/LogFactory.h
-    Storage/LogFactoryTest.cc
-    Storage/MemoryLog.cc
-    Storage/MemoryLog.h
-    Storage/MemoryLogTest.cc
-    Storage/SegmentedLog.cc
-    Storage/SegmentedLog.h
-    Storage/SegmentedLogTest.cc
-    Storage/SimpleFileLog.cc
-    Storage/SimpleFileLog.h
-    Storage/SimpleFileLogTest.cc
-    Storage/SnapshotFile.cc
-    Storage/SnapshotFile.h
-    Storage/SnapshotFileTest.cc
-    Storage/Tool.cc
-    test/TestRunner.cc
-    Tree/ProtoBuf.cc
-    Tree/ProtoBuf.h
-    Tree/ProtoBufTest.cc
-    Tree/Tree.cc
-    Tree/Tree.h
-    Tree/TreeTest.cc Server/StateMachineRedis.cc Server/StateMachineRedis.h)
+    "Server/Main.cc"
+    ${SERVER_FILES}
+    ${ServerProtoSources}
+    ${StorageProtoSources}
+    ${TreeProtoSources}
+    ${STORAGE_FILES}
+    ${TREE_FILES}
+    ${CLIENT_FILES}
+    ${ProtoSources}
+    ${RPC_FILES}
+    ${EVENT_FILES}
+    ${CORE_FILES}
+    Server/utils.cc Server/utils.h
+    ${REDISSERVER_FILES}
+        ${REDIS_CPP_FILES})
 
-add_executable(logcabin ${SOURCE_FILES})
-include_directories(. ./include gtest/include redis3m/include)
+set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a
+        lz4 protobuf cryptopp hiredis
+        pthread rt snappy z bz2 jemalloc event boost_system)
+add_executable(LogCabin ${SOURCE_FILES})
+target_link_libraries(LogCabin ${LIBS})
+include_directories(${CMAKE_CURRENT_BINARY_DIR} ./build . ./include gtest/include redis3m/include)
+
+add_library(logcabin STATIC
+        ${CLIENT_FILES}
+        ${TREE_FILES}
+        ${ProtoSources}
+        ${RPC_FILES}
+        ${EVENT_FILES}
+        ${CORE_FILES}
+        ${ProtoSources}
+        ${ServerProtoSources}
+        ${StorageProtoSources}
+        ${TreeProtoSources})
+
+add_executable(Benchmark ${CMAKE_SOURCE_DIR}/Examples/Benchmark.cc)
+target_link_libraries(Benchmark logcabin ${LIBS})
+add_executable(FailoverTest ${CMAKE_SOURCE_DIR}/Examples/FailoverTest.cc)
+target_link_libraries(FailoverTest logcabin ${LIBS})
+add_executable(HelloWorld ${CMAKE_SOURCE_DIR}/Examples/HelloWorld.cc)
+target_link_libraries(HelloWorld logcabin ${LIBS})
+add_executable(Reconfigure ${CMAKE_SOURCE_DIR}/Examples/Reconfigure.cc)
+target_link_libraries(Reconfigure logcabin ${LIBS})
+add_executable(ReconfigureTest ${CMAKE_SOURCE_DIR}/Examples/ReconfigureTest.cc)
+target_link_libraries(ReconfigureTest logcabin ${LIBS})
+add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc)
+target_link_libraries(SmokeTest logcabin ${LIBS})
+add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FILES})
+target_link_libraries(TreeOps logcabin ${LIBS})
+add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
+target_link_libraries(ServerControl logcabin ${LIBS})

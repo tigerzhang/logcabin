@@ -19,7 +19,7 @@
 #include "Protocol/Common.h"
 #include "RPC/ClientRPC.h"
 #include "RPC/ClientSession.h"
-#include "build/Protocol/Client.pb.h"
+#include "Client.pb.h"
 
 namespace LogCabin {
 namespace Client {
