@@ -15,6 +15,7 @@
 package LogCabin.Protocol.ServerControl;
 
 import "ServerStats.proto";
+import "Raft.proto";
 
 /**
  * \file
@@ -185,6 +186,11 @@ enum SnapshotCommand {
      * then begin taking a new snapshot.
      */
     RESTART_SNAPSHOT = 3;
+
+    /**
+     * Dump Snapshot to client
+     */
+    DUMP_SNAPSHOT = 4;
 };
 
 /**
@@ -197,6 +203,7 @@ message SnapshotControl {
          * What to do.
          */
         required SnapshotCommand command = 1;
+        optional uint64 next_log_id = 2;
     }
     message Response {
         /**
@@ -204,6 +211,7 @@ message SnapshotControl {
          * otherwise.
          */
         optional string error = 1;
+        optional LogCabin.Protocol.Raft.InstallSnapshot.Request installsnap_request = 2;
     }
 }
 

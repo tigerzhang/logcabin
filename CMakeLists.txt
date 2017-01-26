@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
+add_definitions(-DROCKSDB_STATEMACHINE)
+
 find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
 set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/Protocol)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3")
 set(SERVER_FILES "Server/ClientService.cc"
     "Server/ControlService.cc"
     "Server/Globals.cc"

@@ -14,6 +14,7 @@
  */
 
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "ServerControl.pb.h"
 #include "Core/Debug.h"
@@ -196,8 +197,42 @@ ControlService::serverStatsGet(RPC::ServerRPC rpc)
 }
 
 void
+ControlService::getInstallSnapshotProto(RPC::ServerRPC rpc, uint64_t next_log_id,
+                                        Protocol::ServerControl::SnapshotControl::Response& response
+) {
+    auto& raft = globals.raft;
+    Protocol::Raft::InstallSnapshot::Request* request = response.mutable_installsnap_request();
+
+    request->set_server_id(raft->serverId);
+    request->set_term(0);
+    request->set_version(2);
+
+    auto& storageLayout = raft->getStorageLayout();
+    Storage::FilesystemUtil::FileContents snapshotFile(
+                    Storage::FilesystemUtil::openFile(
+                            storageLayout.snapshotDir, "snapshot", O_RDONLY));
+    uint64_t snapshotFileOffset = 0;
+    uint64_t lastSnapshotIndex = raft->getLastSnapshotIndex();
+
+    request->set_last_snapshot_index(lastSnapshotIndex);
+    request->set_byte_offset(snapshotFileOffset);
+
+    uint64_t numDataBytes = 0;
+    numDataBytes = std::min(snapshotFile.getFileLength() - snapshotFileOffset,
+                            raft->getSOFT_RPC_SIZE_LIMIT());
+    VVERBOSE("numDataBytes %lud, file length %lud",
+             numDataBytes, snapshotFile.getFileLength());
+    request->set_data(snapshotFile.get<char>(snapshotFileOffset, numDataBytes),
+                      numDataBytes);
+    request->set_done(snapshotFileOffset + numDataBytes ==
+                             snapshotFile.getFileLength());
+}
+
+void
 ControlService::snapshotControl(RPC::ServerRPC rpc)
 {
+    uint64_t next_log_id = 1;
+
     PRELUDE(SnapshotControl);
     using Protocol::ServerControl::SnapshotCommand;
     switch (request.command()) {
@@ -210,6 +245,13 @@ ControlService::snapshotControl(RPC::ServerRPC rpc)
         case SnapshotCommand::RESTART_SNAPSHOT:
             globals.stateMachine->stopTakingSnapshot();
             globals.stateMachine->startTakingSnapshot();
+            break;
+        case SnapshotCommand::DUMP_SNAPSHOT:
+            if (request.has_next_log_id()) {
+                VVERBOSE("next_log_id: %lud", request.next_log_id());
+                next_log_id = request.next_log_id();
+            }
+            getInstallSnapshotProto(std::move(rpc), next_log_id, response);
             break;
         case SnapshotCommand::UNKNOWN_SNAPSHOT_COMMAND: // fallthrough
         default:

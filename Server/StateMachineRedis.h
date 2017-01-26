@@ -23,6 +23,9 @@ public:
             Globals& globals, void *kvstore);
     virtual ~StateMachineRedis() {}
 
+    virtual void takeSnapshotWriteData(uint64_t lastIncludedIndex,
+                               Core::ProtoBuf::OutputStream& writer);
+    virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream);
 
     int put(const std::string &key, const std::string &value);
 

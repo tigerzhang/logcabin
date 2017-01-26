@@ -67,6 +67,8 @@ class ClientService : public RPC::Service {
     // ClientService is non-copyable.
     ClientService(const ClientService&) = delete;
     ClientService& operator=(const ClientService&) = delete;
+
+    void getLogEntries(RPC::ServerRPC rpc);
 }; // class ClientService
 
 } // namespace LogCabin::Server

@@ -207,9 +207,15 @@ class Globals {
     /**
      * State machine used to process client requests.
      */
-    std::shared_ptr<Server::StateMachineRedis> stateMachine;
+#ifdef ROCKSDB_STATEMACHINE
+    std::shared_ptr<Server::StateMachineBase> stateMachine;
+#else
 
-    std::shared_ptr<Server::StateMachineRocksdb> stateMachineRocksdb;
+#ifdef REDIS_STATEMACHINE
+    std::shared_ptr<Server::StateMachineRedis> stateMachine;
+#endif
+
+#endif
 
 private:
 

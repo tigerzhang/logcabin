@@ -1452,8 +1452,10 @@ class RaftConsensus {
      * Const except for unit tests.
      */
     uint64_t SOFT_RPC_SIZE_LIMIT;
+public:
+    uint64_t getSOFT_RPC_SIZE_LIMIT() const;
 
-  public:
+public:
     /**
      * This server's unique ID. Not available until init() is called.
      */
@@ -1476,6 +1478,10 @@ class RaftConsensus {
      * Where the files for the log and snapshots are stored.
      */
     Storage::Layout storageLayout;
+public:
+    const Storage::Layout &getStorageLayout() const;
+
+private:
 
     /**
      * Used to create new sessions.
@@ -1583,6 +1589,10 @@ class RaftConsensus {
      * Thus, the log may or may not have some of the entries in this range.
      */
     uint64_t lastSnapshotIndex;
+public:
+    uint64_t getLastSnapshotIndex() const;
+
+private:
 
     /**
      * The term of the last entry covered by the latest good snapshot, or 0 if
