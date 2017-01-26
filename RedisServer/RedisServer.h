@@ -84,9 +84,9 @@ private:
         std::string key(pConnector->argv[1]);
         std::string value(pConnector->argv[2]);
         LogCabin::Client::Result result = tree.write(key, value);
-        std::cout << "result status: " << result.status
-                  << " error :" << result.error
-                  << std::endl;
+        // std::cout << "result status: " << result.status
+        //           << " error :" << result.error
+        //           << std::endl;
         SendRawReply(pConnector, result.error);
 //        std::string cmd("set ");
 //        cmd += std::string(pConnector->argv[1]);
