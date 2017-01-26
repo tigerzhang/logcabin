@@ -346,7 +346,7 @@ main(int argc, char** argv)
 
         // std::vector<Cluster> clusters;
         std::vector<Tree*> trees;
-        std::vector<std::string> clusters_opt = split(options.clusterEx, ',');
+        std::vector<std::string> clusters_opt = split(options.cluster2, ',');
         for(auto const& cluster_opt: clusters_opt) {
 	    Cluster *cluster = new Cluster(cluster_opt);
 	    Tree *tree = new Tree(cluster->getTree());
