@@ -160,6 +160,10 @@ class ClientImpl {
                          const google::protobuf::Message& request,
                          google::protobuf::Message& response);
 
+    Result keyValueRead(const std::string& key,
+                        TimePoint timeout,
+                        std::string& value);
+
   protected:
 
     /**

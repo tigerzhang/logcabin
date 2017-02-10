@@ -542,6 +542,9 @@ public:
 
     virtual int put(const std::string &key, const std::string &value) = 0;
     virtual int get(const std::string &key, std::string *value) const = 0;
+
+    virtual int kvget(const std::string &key, std::string *value) const { return 0; }
+
 };
 
 } // namespace LogCabin::Server

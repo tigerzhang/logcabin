@@ -837,7 +837,7 @@ class Cluster {
      */
     Tree getTree();
 
-  private:
+//  private:
     std::shared_ptr<ClientImpl> clientImpl;
 };
 

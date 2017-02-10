@@ -203,6 +203,44 @@ treeCall(LeaderRPCBase& leaderRPC,
     }
 }
 
+void
+keyValueCall(LeaderRPCBase &leaderRPC,
+             const Protocol::Client::ReadOnlyKeyValue::Request &request,
+             Protocol::Client::ReadOnlyKeyValue::Response &response,
+             ClientImpl::TimePoint timeout) {
+    VERBOSE("Calling key-value readonly command with request:\n%s",
+            Core::StringUtil::trim(
+                    Core::ProtoBuf::dumpString(request)).c_str());
+    Protocol::Client::StateMachineQuery::Request crequest;
+    Protocol::Client::StateMachineQuery::Response cresponse;
+//    crequest.mutable_key_value()->set_key(request.key());
+    *crequest.mutable_key_value() = request;
+    LeaderRPC::Status status;
+
+    status = leaderRPC.call(Protocol::Client::OpCode::STATE_MACHINE_QUERY,
+                            crequest, cresponse, timeout);
+
+    switch (status) {
+        case LeaderRPC::Status::OK:
+            response = *cresponse.mutable_key_value();
+            VERBOSE("Reply to key-value read command:\n%s",
+                    Core::StringUtil::trim(
+                            Core::ProtoBuf::dumpString(response)).c_str());
+            break;
+        case LeaderRPC::Status::TIMEOUT:
+            response.set_status(Protocol::Client::Status::TIMEOUT);
+            response.set_error("Client-specified timeout elapsed");
+            VERBOSE("Timeout elapsed on key-value read command");
+            break;
+        case LeaderRPC::Status::INVALID_REQUEST:
+            PANIC("The server and/or replicated state machine doesn't support "
+                          "the key-value read command or claims the request is "
+                          "mailformed. Request is: %s",
+                  Core::ProtoBuf::dumpString(request).c_str());
+            break;
+    }
+}
+
 
 } // anonymous namespace
 
@@ -806,6 +844,19 @@ ClientImpl::read(const std::string& path,
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     contents = response.read().contents();
+    return Result();
+}
+
+Result
+ClientImpl::keyValueRead(const std::string& key,
+                         TimePoint timeout,
+                         std::string& value)
+{
+    value = "";
+    Protocol::Client::ReadOnlyKeyValue::Request request;
+    *request.mutable_key() = key;
+    Protocol::Client::ReadOnlyKeyValue::Response response;
+    keyValueCall(*leaderRPC, request, response, timeout);
     return Result();
 }
 

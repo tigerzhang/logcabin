@@ -30,6 +30,8 @@
 #include "StateMachineRedis.h"
 
 #include <redis3m/redis3m.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string.hpp>
 
 namespace LogCabin {
 namespace Server {
@@ -190,9 +192,24 @@ Globals::init()
     if (!stateMachine) {
         NOTICE("Connecting redis...");
 //        redisConnection = redis3m::connection::create("localhost", 6579);
-        std::string sock_path = raft->getStorageLayout().serverDir.path + "/redis.sock";
-        NOTICE("Open redis: %s", sock_path.c_str());
-        redisConnection = redis3m::connection::create_unix(sock_path);
+        std::string redisAddress =
+                config.read<std::string>("redisAddress", std::string(""));
+        if (redisAddress == "") {
+            std::string redisSock =
+                    config.read<std::string>("redisSock", std::string(""));
+            if (redisSock != "") {
+                // open unix socket
+                std::string sock_path = raft->getStorageLayout().serverDir.path + "/redis.sock";
+                NOTICE("Open redis: %s", sock_path.c_str());
+                redisConnection = redis3m::connection::create_unix(sock_path);
+            }
+        } else {
+            std::vector<std::string> splitVect;
+            boost::split(splitVect, redisAddress, boost::is_any_of(":"));
+            NOTICE("redisAddress: %s, %s", splitVect[0].c_str(), splitVect[1].c_str());
+            redisConnection = redis3m::connection::create(
+                    splitVect[0], std::stoi(splitVect[1]));
+        }
         assert(redisConnection.get() != NULL);
         redis3m::reply reply = redisConnection->run(redis3m::command("PING"));
         NOTICE("Ping redis: %s", reply.str().c_str());

@@ -24,6 +24,7 @@
 #include <LogCabin/Debug.h>
 #include <LogCabin/Util.h>
 #include <zconf.h>
+#include <Client/ClientImpl.h>
 
 #include "../RedisServer/RedisServer.h"
 
@@ -42,7 +43,8 @@ enum class Command {
     READ,
     REMOVE,
     SUBSCRIBE,
-    UNSUBSCRIBE
+    UNSUBSCRIBE,
+    KVREAD
 };
 
 /**
@@ -147,6 +149,8 @@ class OptionParser {
             command = Command::SUBSCRIBE;
         } else if (cmdStr == "unsub" || cmdStr == "unsubscribe") {
             command = Command ::UNSUBSCRIBE;
+        } else if (cmdStr == "kvread") {
+            command = Command::KVREAD;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -390,6 +394,16 @@ main(int argc, char** argv)
             }
             case Command::REMOVE:
                 tree.removeFileEx(path);
+                break;
+            case Command::KVREAD: {
+                std::string value;
+                auto c = cluster.clientImpl;
+                c->keyValueRead(path,
+                                LogCabin::Client::ClientImpl::absTimeout(options.timeout),
+                                value);
+                std::cout << value << std::endl;
+                std::cout.flush();
+            }
                 break;
         }
 //        return 0;

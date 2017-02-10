@@ -33,6 +33,7 @@ public:
 
 //    int initKVStore();
 
+    int kvget(const std::string &key, std::string *value) const;
 };
 
 }

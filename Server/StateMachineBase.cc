@@ -136,7 +136,22 @@ StateMachineBase::query(const Query::Request& request,
 //                                        *response.mutable_tree());
 //        return true;
 //    }
-    if (request.has_tree()) {
+    VERBOSE("query: %s\n",
+            Core::StringUtil::trim(Core::ProtoBuf::dumpString(request)).c_str());
+    if (request.has_key_value()) {
+        const PC::ReadOnlyKeyValue::Request& keyValue = request.key_value();
+        std::string contents;
+        int result = kvget(keyValue.key(), &contents);
+        if (result == 0) {
+            response.mutable_key_value()->set_value(contents);
+            response.mutable_key_value()->set_status(Protocol::Client::Status::OK);
+            return true;
+        } else {
+            response.mutable_key_value()->set_error("TODO error message");
+            response.mutable_key_value()->set_status(Protocol::Client::Status::LOOKUP_ERROR);
+            return true;
+        }
+    } else if (request.has_tree()) {
         const PC::ReadOnlyTree::Request &tree = request.tree();
         if (tree.has_read()) {
             std::string contents;
