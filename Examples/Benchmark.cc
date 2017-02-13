@@ -32,6 +32,9 @@
 #include <thread>
 #include <unistd.h>
 #include <algorithm>
+#include <string>
+#include <sstream>
+#include <vector>
 
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
@@ -51,6 +54,22 @@ uint64_t timeNanos(void);
 
 std::vector<uint64_t> stats;
 std::mutex statsMutex;
+
+void split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}
+
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
+}
 
     /**
  * Parses argv for the main function.
@@ -324,6 +343,16 @@ main(int argc, char** argv)
         LogCabin::Client::Debug::setLogPolicy(
             LogCabin::Client::Debug::logPolicyFromString(
                 options.logPolicy));
+
+        // std::vector<Cluster> clusters;
+        std::vector<Tree*> trees;
+        std::vector<std::string> clusters_opt = split(options.cluster2, ',');
+        for(auto const& cluster_opt: clusters_opt) {
+	    Cluster *cluster = new Cluster(cluster_opt);
+	    Tree *tree = new Tree(cluster->getTree());
+            trees.push_back(tree);
+        }
+
         Cluster cluster = Cluster(options.cluster);
         Tree tree = cluster.getTree();
 
@@ -348,7 +377,8 @@ main(int argc, char** argv)
         uint64_t totalWritesDone = 0;
         std::vector<std::thread> threads;
         std::thread timer(timerThreadMain, options.timeout, std::ref(exit));
-        for (uint64_t i = 0; i < options.writers; ++i) {
+        uint64_t i = 0;
+        for (i = 0; i < options.writers; ++i) {
             threads.emplace_back(writeThreadMain, i, std::ref(options),
                                  tree, std::ref(key), std::ref(value),
                                  std::ref(exit),
