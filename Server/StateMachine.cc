@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <rocksdb/status.h>
+#include <Client.pb.h>
+#include <SnapshotStateMachine.pb.h>
 
 #include "Core/Debug.h"
 #include "Core/Mutex.h"

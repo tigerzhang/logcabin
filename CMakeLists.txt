@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
 add_definitions(-DROCKSDB_STATEMACHINE)
+#add_definitions(-DREDIS_STATEMACHINE)
 
 find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
@@ -62,6 +63,7 @@ set(EVENT_FILES "Event/File.cc"
     "Event/Signal.cc"
     "Event/Timer.cc"
 )
+file(GLOB CORE_PROTO_FILES "Core/*.proto")
 set(CORE_FILES "Core/Buffer.cc"
     "Core/Checksum.cc"
     "Core/ConditionVariable.cc"
@@ -85,6 +87,7 @@ PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTOCOL_FILES})
 PROTOBUF_GENERATE_CPP(ServerProtoSources ServerProtoHeaders ${SERVER_PROTO_FILES})
 PROTOBUF_GENERATE_CPP(StorageProtoSources StorageProtoHeaders ${STORAGE_PROTO_FILES})
 PROTOBUF_GENERATE_CPP(TreeProtoSources TreeProtoHeaders ${TREE_PROTO_FILES})
+PROTOBUF_GENERATE_CPP(CoreProtoSources CoreProtoHeaders ${CORE_PROTO_FILES})
 
 set(REDIS_CPP_FILES
         "redis_cpp/src/helpers.cpp"
@@ -108,12 +111,21 @@ set(SOURCE_FILES
     ${REDISSERVER_FILES}
         ${REDIS_CPP_FILES})
 
+find_library(LZ4_LIB_STATIC NAMES liblz4.a)
+find_library(PROTOBUF_LIB_STATIC NAMES libprotobuf.a)
+find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
+find_library(HIREDIS_LIB_STATIC NAMES libhiredis.a)
+find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
+find_library(BZ2_LIB_STATIC NAMES libbz2.a)
+find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
+find_library(EVENT_LIB_STATIC NAMES libevent.a)
+find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
 set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a
-        lz4 protobuf cryptopp hiredis
-        pthread rt snappy z bz2 jemalloc event boost_system)
+        ${LZ4_LIB_STATIC} ${PROTOBUF_LIB_STATIC} ${CRYPTOPP_LIB_STATIC} ${HIREDIS_LIB_STATIC}
+        pthread rt ${SNAPPY_LIB_STATIC} z ${BZ2_LIB_STATIC} ${JEMALLOC_LIB_STATIC} ${EVENT_LIB_STATIC} ${BOOST_SYSTEM_LIB_STATIC})
 add_executable(LogCabin ${SOURCE_FILES})
 target_link_libraries(LogCabin ${LIBS})
-include_directories(${CMAKE_CURRENT_BINARY_DIR} ./build . ./include gtest/include redis3m/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include)
 
 add_library(logcabin STATIC
         ${CLIENT_FILES}
@@ -143,3 +155,34 @@ add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FIL
 target_link_libraries(TreeOps logcabin ${LIBS})
 add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
 target_link_libraries(ServerControl logcabin ${LIBS})
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
+
+file(GLOB CLIENT_TEST_FILES "Client/*Test.cc" "Client/*Mock.cc")
+file(GLOB CORE_TEST_FILES "Core/*Test.cc" "Core/*Mock.cc")
+file(GLOB EVENT_TEST_FILES "Event/*Test.cc" "Event/*Mock.cc")
+file(GLOB RPC_TEST_FILES "RPC/*Test.cc" "RPC/*Mock.cc")
+file(GLOB SERVER_TEST_FILES "Server/*Test.cc" "Server/*Mock.cc")
+file(GLOB STORAGE_TEST_FILES "Storage/*Test.cc" "Storage/*Mock.cc")
+file(GLOB TREE_TEST_FILES "Tree/*Test.cc" "Tree/*Mock.cc")
+
+set(TEST_SOURCE_FILES test/TestRunner.cc
+        ${SERVER_FILES}
+        ${STORAGE_FILES}
+        ${CLIENT_FILES}
+        ${TREE_FILES}
+        ${PROTOCOL_FILES}
+        ${RPC_FILES}
+        ${EVENT_FILES}
+        ${CORE_FILES}
+        ${REDIS_CPP_FILES}
+        ${CoreProtoSources}
+        ${CLIENT_TEST_FILES}
+        ${CORE_TEST_FILES}
+        ${EVENT_TEST_FILES}
+        ${RPC_TEST_FILES}
+        ${SERVER_TEST_FILES}
+        ${STORAGE_TEST_FILES}
+        ${TREE_TEST_FILES})
+add_executable(Test ${TEST_SOURCE_FILES})
+target_link_libraries(Test logcabin ${LIBS} ${CMAKE_SOURCE_DIR}/gtest/build/libgtest.a)

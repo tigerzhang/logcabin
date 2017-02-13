@@ -65,7 +65,7 @@ class StateMachineRocksdb : public StateMachineBase {
 
   private:
     virtual void takeSnapshotWriteData(uint64_t lastIncludedIndex,
-                                       Core::ProtoBuf::OutputStream& writer);
+                                       Storage::SnapshotFile::Writer *writer);
 
     virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream);
 
@@ -80,6 +80,9 @@ public:
     virtual int put(const std::string &key, const std::string &value);
 
     virtual int get(const std::string &key, std::string *value) const;
+
+    virtual void* createSnapshotPoint();
+    virtual void snapshotDone();
 };
 
 } // namespace LogCabin::Server

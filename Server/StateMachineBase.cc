@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <rocksdb/status.h>
+#include <Client.pb.h>
+#include <SnapshotStateMachine.pb.h>
 
 #include "Core/Debug.h"
 #include "Core/Mutex.h"
@@ -26,9 +28,6 @@
 #include "Core/ThreadId.h"
 #include "Core/Util.h"
 #include "Server/Globals.h"
-#include "Server/RaftConsensus.h"
-#include "Server/StateMachineBase.h"
-#include "Storage/SnapshotFile.h"
 #include "Tree/ProtoBuf.h"
 #include "Server/StateMachineRocksdb.h"
 
@@ -93,6 +92,7 @@ StateMachineBase::StateMachineBase(std::shared_ptr<RaftConsensus> consensus,
     , applyThread()
     , snapshotThread()
     , snapshotWatchdogThread()
+    , _options()
 {
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
@@ -784,6 +784,10 @@ StateMachineBase::takeSnapshot(uint64_t lastIncludedIndex,
     ++numSnapshotsAttempted;
     snapshotStarted.notify_all();
 
+    // Create a read-only snapshot for dumping data to backup
+    assert(_options.snapshot == nullptr);
+    createSnapshotPoint();
+
     pid_t pid = fork();
     if (pid == -1) { // error
         PANIC("Couldn't fork: %s", strerror(errno));
@@ -813,7 +817,7 @@ StateMachineBase::takeSnapshot(uint64_t lastIncludedIndex,
         }
         // Then the Tree itself (this one is potentially large)
 //        tree.dumpSnapshot(*writer);
-        takeSnapshotWriteData(lastIncludedIndex, *writer);
+        takeSnapshotWriteData(lastIncludedIndex, writer.get());
 
         // Flush the changes to the snapshot file before exiting.
         writer->flushToOS();
@@ -828,6 +832,9 @@ StateMachineBase::takeSnapshot(uint64_t lastIncludedIndex,
             Core::MutexUnlock<Core::Mutex> unlockGuard(lockGuard);
             pid = waitpid(pid, &status, 0);
         }
+
+        snapshotDone();
+
         childPid = 0;
         if (pid == -1)
             PANIC("Couldn't waitpid: %s", strerror(errno));
@@ -884,6 +891,10 @@ StateMachineBase::warnUnknownRequest(
     } else {
         ++numUnknownRequestsSinceLastMessage;
     }
+}
+
+const std::shared_ptr<RaftConsensus> &StateMachineBase::getConsensus() const {
+    return consensus;
 }
 
 } // namespace LogCabin::Server

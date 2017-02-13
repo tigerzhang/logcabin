@@ -18,6 +18,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <rocksdb/options.h>
 
 #include "Client.pb.h"
 #include "SnapshotStateMachine.pb.h"
@@ -249,7 +250,7 @@ class StateMachineBase {
                       std::unique_lock<Core::Mutex>& lockGuard);
 
     virtual void takeSnapshotWriteData(uint64_t lastIncludedIndex,
-                                       Core::ProtoBuf::OutputStream& writer) = 0;
+                                       Storage::SnapshotFile::Writer *writer) = 0;
 
     virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream) = 0;
 
@@ -272,6 +273,10 @@ class StateMachineBase {
      * snapshots.
      */
     std::shared_ptr<RaftConsensus> consensus;
+public:
+    const std::shared_ptr<RaftConsensus> &getConsensus() const;
+
+protected:
 
     /**
      * Server-wide globals. Used to unblock signal handlers in child process.
@@ -513,6 +518,8 @@ class StateMachineBase {
      */
     std::unique_ptr<Storage::SnapshotFile::Writer> writer;
 
+    rocksdb::ReadOptions _options;
+
     /**
      * Repeatedly calls into the consensus module to get commands to process
      * and applies them.
@@ -544,6 +551,9 @@ public:
     virtual int get(const std::string &key, std::string *value) const = 0;
 
     virtual int kvget(const std::string &key, std::string *value) const { return 0; }
+
+    virtual void* createSnapshotPoint() = 0;
+    virtual void snapshotDone() = 0;
 
 };
 
