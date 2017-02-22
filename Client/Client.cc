@@ -434,6 +434,38 @@ Tree::writeEx(const std::string& path, const std::string& contents)
 }
 
 Result
+Tree::kvwrite(const std::string& key, const std::string& value)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->keyValueWrite(
+            key,
+            value,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+void Tree::kvwriteEx(const std::string& key, const std::string& value)
+{
+    throwException(kvwrite(key, value), treeDetails->timeoutNanos);
+}
+
+Result
+Tree::kvread(const std::string &key, std::string &value)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->keyValueRead(
+            key,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos),
+            value
+    );
+}
+
+void
+Tree::kvreadEx(const std::string& key, std::string& value)
+{
+    throwException(kvread(key, value), treeDetails->timeoutNanos);
+}
+
+Result
 Tree::read(const std::string& path, std::string& contents) const
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();

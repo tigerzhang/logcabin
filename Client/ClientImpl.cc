@@ -241,6 +241,38 @@ keyValueCall(LeaderRPCBase &leaderRPC,
     }
 }
 
+void
+keyValueCall(LeaderRPCBase &leaderRPC,
+             const Protocol::Client::ReadWriteKeyValue::Request &request,
+             Protocol::Client::ReadWriteKeyValue::Response &response,
+             ClientImpl::TimePoint timeout ) {
+    Protocol::Client::StateMachineCommand::Request crequest;
+    Protocol::Client::StateMachineCommand::Response cresponse;
+    *crequest.mutable_key_value() = request;
+    LeaderRPC::Status status;
+
+    status = leaderRPC.call(Protocol::Client::OpCode::STATE_MACHINE_COMMAND,
+                            crequest, cresponse, timeout);
+
+    switch (status) {
+        case LeaderRPC::Status::OK:
+            response = *cresponse.mutable_key_value();
+            VERBOSE("Reply to key-value write command:\n%s",
+                    Core::StringUtil::trim(Core::ProtoBuf::dumpString(response)).c_str());
+            break;
+        case LeaderRPC::Status::TIMEOUT:
+            response.set_status(Protocol::Client::Status::TIMEOUT);
+            response.set_error("Client-specified timeout elapsed");
+            VERBOSE("Timeout elapsed on key-value write command");
+            break;
+        case LeaderRPC::Status::INVALID_REQUEST:
+            PANIC("The server and/or replicated state machine doesn't support "
+                          "the key-value write command or claims the request is "
+                          "mailformed. Request is: %s",
+                  Core::ProtoBuf::dumpString(request).c_str());
+            break;
+    }
+}
 
 } // anonymous namespace
 
@@ -856,6 +888,23 @@ ClientImpl::keyValueRead(const std::string& key,
     Protocol::Client::ReadOnlyKeyValue::Request request;
     *request.mutable_key() = key;
     Protocol::Client::ReadOnlyKeyValue::Response response;
+    keyValueCall(*leaderRPC, request, response, timeout);
+    if (response.status() != Protocol::Client::Status::OK) {
+        return treeError(response);
+    }
+    value = response.value();
+    return Result();
+}
+
+Result
+ClientImpl::keyValueWrite(const std::string& key,
+                     const std::string& value,
+                     TimePoint timeout)
+{
+    Protocol::Client::ReadWriteKeyValue::Request request;
+    *request.mutable_key() = key;
+    *request.mutable_value() = value;
+    Protocol::Client::ReadWriteKeyValue::Response response;
     keyValueCall(*leaderRPC, request, response, timeout);
     return Result();
 }

@@ -163,6 +163,9 @@ class ClientImpl {
     Result keyValueRead(const std::string& key,
                         TimePoint timeout,
                         std::string& value);
+    Result keyValueWrite(const std::string& key,
+                         const std::string& value,
+                         TimePoint timeout);
 
   protected:
 

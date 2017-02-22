@@ -86,6 +86,8 @@ class OptionParser {
         , writers(1)
         , totalWrites(1000)
         , timeout(parseNonNegativeDuration("30s"))
+        , keyValue(false)
+        , readBench(false)
     {
         while (true) {
             static struct option longOptions[] = {
@@ -98,6 +100,8 @@ class OptionParser {
                {"writes",  required_argument, NULL, 'w'},
                {"verbose",  no_argument, NULL, 'v'},
                {"verbosity",  required_argument, NULL, 256},
+               {"keyvalue", no_argument, NULL, 'k'},
+               {"read", no_argument, NULL, 'r'},
                {0, 0, 0, 0}
             };
             int c = getopt_long(argc, argv, "c:hs:t:w:vC:", longOptions, NULL);
@@ -133,6 +137,12 @@ class OptionParser {
                     break;
                 case 'C':
                     cluster2 = optarg;
+                    break;
+                case 'k':
+                    keyValue = true;
+                    break;
+                case 'r':
+                    readBench = true;
                     break;
                 case '?':
                 default:
@@ -215,6 +225,14 @@ class OptionParser {
             << std::endl
             << "                          "
             << "Example: Client@NOTICE,Test.cc@SILENT,VERBOSE."
+            << std::endl
+
+            << "  -k, --keyvalue          "
+            << "Benchmark key value write."
+            << std::endl
+
+            << "  -r, --read              "
+            << "Benchmark key value read."
             << std::endl;
     }
 
@@ -227,6 +245,8 @@ class OptionParser {
     uint64_t writers;
     uint64_t totalWrites;
     uint64_t timeout;
+    bool keyValue;
+    bool readBench;
 };
 
 /**
@@ -255,6 +275,7 @@ writeThreadMain(uint64_t id,
                 std::atomic<bool>& exit,
                 uint64_t& writesDone)
 {
+    std::string readValue;
     uint64_t numWrites = options.totalWrites / options.writers;
     // assign any odd leftover writes in a balanced way
     if (options.totalWrites - numWrites * options.writers > id)
@@ -263,7 +284,16 @@ writeThreadMain(uint64_t id,
         if (exit)
             break;
         uint64_t startNanos = timeNanos();
-        tree.writeEx(format("%s-%ld", key.c_str(), i), value);
+        if (options.keyValue) {
+            if (options.readBench) {
+                tree.kvreadEx(format("%s-%ld", key.c_str(), i), readValue);
+            } else {
+                tree.kvwriteEx(format("%s-%ld", key.c_str(), i), value);
+            }
+        } else {
+            tree.writeEx(format("%s-%ld", key.c_str(), i), value);
+        }
+//        tree.kvreadEx(format("%s-%ld", key.c_str(), i), readValue);
         uint64_t endNanos = timeNanos();
         {
             std::lock_guard<std::mutex> lock(statsMutex);

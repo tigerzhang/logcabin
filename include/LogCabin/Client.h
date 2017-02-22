@@ -518,6 +518,17 @@ class Tree {
     void
     writeEx(const std::string& path, const std::string& contents);
 
+    Result
+    kvwrite(const std::string& key, const std::string& value);
+
+    void kvwriteEx(const std::string& key, const std::string& value);
+
+    Result
+    kvread(const std::string& key, std::string& value);
+
+    void
+    kvreadEx(const std::string& key, std::string& value);
+
     /**
      * Get the value of a file.
      * \param path

@@ -141,7 +141,7 @@ StateMachineBase::query(const Query::Request& request,
     if (request.has_key_value()) {
         const PC::ReadOnlyKeyValue::Request& keyValue = request.key_value();
         std::string contents;
-        int result = kvget(keyValue.key(), &contents);
+        int result = get(keyValue.key(), &contents);
         if (result == 0) {
             response.mutable_key_value()->set_value(contents);
             response.mutable_key_value()->set_status(Protocol::Client::Status::OK);
@@ -227,7 +227,10 @@ StateMachineBase::waitForResponse(uint64_t logIndex,
     // skip this check for now.
     uint16_t versionThen = getVersion(logIndex);
 
-    if (command.has_tree()) {
+    if (command.has_key_value()) {
+        response.mutable_key_value()->set_status(PC::Status::OK);
+        return true;
+    } else if (command.has_tree()) {
         const PC::ExactlyOnceRPCInfo& rpcInfo = command.tree().exactly_once();
         auto sessionIt = sessions.find(rpcInfo.client_id());
         if (sessionIt == sessions.end()) {
@@ -349,7 +352,11 @@ StateMachineBase::apply(const RaftConsensus::Entry& entry)
               entry.index);
     }
     uint16_t runningVersion = getVersion(entry.index - 1);
-    if (command.has_tree()) {
+    if (command.has_key_value()) {
+        const PC::ReadWriteKeyValue::Request &request = command.key_value();
+        int ret = put(request.key(), request.value());
+        assert(ret == 0);
+    } else if (command.has_tree()) {
         PC::ExactlyOnceRPCInfo rpcInfo = command.tree().exactly_once();
         auto it = sessions.find(rpcInfo.client_id());
         if (it == sessions.end()) {

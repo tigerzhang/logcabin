@@ -44,7 +44,8 @@ enum class Command {
     REMOVE,
     SUBSCRIBE,
     UNSUBSCRIBE,
-    KVREAD
+    KVREAD,
+    KVWRITE
 };
 
 /**
@@ -151,6 +152,8 @@ class OptionParser {
             command = Command ::UNSUBSCRIBE;
         } else if (cmdStr == "kvread") {
             command = Command::KVREAD;
+        } else if (cmdStr == "kvwrite") {
+            command = Command::KVWRITE;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -216,6 +219,8 @@ class OptionParser {
             << "  remove <path>   Remove file at <path>, if any. Alias: rm, "
             << "removefile."
             << std::endl
+            << "  kvread <key>"
+            << "  kvwrite <key>     Read value from stdin"
             << std::endl;
 
         std::cout << "Options:" << std::endl;
@@ -401,24 +406,30 @@ main(int argc, char** argv)
                 c->keyValueRead(path,
                                 LogCabin::Client::ClientImpl::absTimeout(options.timeout),
                                 value);
-                std::cout << value << std::endl;
+                std::cout << "value: " << value << std::endl;
                 std::cout.flush();
+                break;
+            };
+            case Command::KVWRITE: {
+                auto c = cluster.clientImpl;
+                c->keyValueWrite(path, readStdin(),
+                                 LogCabin::Client::ClientImpl::absTimeout(options.timeout));
             }
                 break;
         }
 //        return 0;
 
-        RedisServer redis(tree);
-        redis.Init();
-        std::string pass = "shahe22f";
-        redis.SetPassword(pass);
-        int port = 6479;
-        std::cout << "Listen port " << port << std::endl;
-        redis.Start("127.0.0.1", port);
-
-        while (1) {
-            usleep(1000);
-        }
+//        RedisServer redis(tree);
+//        redis.Init();
+//        std::string pass = "shahe22f";
+//        redis.SetPassword(pass);
+//        int port = 6479;
+//        std::cout << "Listen port " << port << std::endl;
+//        redis.Start("127.0.0.1", port);
+//
+//        while (1) {
+//            usleep(1000);
+//        }
 
     } catch (const LogCabin::Client::Exception& e) {
         std::cerr << "Exiting due to LogCabin::Client::Exception: "

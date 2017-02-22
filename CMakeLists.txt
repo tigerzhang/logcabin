@@ -125,7 +125,7 @@ set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a ${CMAKE_SOURCE_DIR}/rock
         pthread rt ${SNAPPY_LIB_STATIC} z ${BZ2_LIB_STATIC} ${JEMALLOC_LIB_STATIC} ${EVENT_LIB_STATIC} ${BOOST_SYSTEM_LIB_STATIC})
 add_executable(LogCabin ${SOURCE_FILES})
 target_link_libraries(LogCabin ${LIBS})
-include_directories(${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include rocksdb/include)
 
 add_library(logcabin STATIC
         ${CLIENT_FILES}
@@ -155,6 +155,8 @@ add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FIL
 target_link_libraries(TreeOps logcabin ${LIBS})
 add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
 target_link_libraries(ServerControl logcabin ${LIBS})
+add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources})
+target_link_libraries(Tool logcabin ${LIBS} pthread)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
 
@@ -186,3 +188,12 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${TREE_TEST_FILES})
 add_executable(Test ${TEST_SOURCE_FILES})
 target_link_libraries(Test logcabin ${LIBS} ${CMAKE_SOURCE_DIR}/gtest/build/libgtest.a)
+
+SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/ServerControl RENAME logcabinctl DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/LogCabin RENAME logcabind DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/TreeOps RENAME logcabin DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/Benchmark RENAME logcabin-benchmark DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/Reconfigure RENAME logcabin-reconfigure DESTINATION ${INSTALL_PATH})
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/SmokeTest RENAME logcabin-smoketest DESTINATION ${INSTALL_PATH})
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/Tool RENAME logcabin-storage DESTINATION ${INSTALL_PATH})

@@ -324,6 +324,17 @@ message ReadOnlyKeyValue {
     }
 }
 
+message ReadWriteKeyValue {
+    message Request {
+        required string key = 1;
+        required string value = 2;
+    }
+    message Response {
+        required Status status = 1;
+        optional string error = 2;
+    }
+}
+
 /**
  * Read-write Tree state machine command: modifies the hierarchical key-value
  * store and retrieves information from it.
@@ -413,7 +424,7 @@ message StateMachineCommand {
         optional CloseSession.Request close_session = 4;
         optional ReadWriteTree.Request tree = 2;
         optional AdvanceStateMachineVersion.Request advance_version = 3;
-        optional ReadOnlyKeyValue.Request key_value = 5;
+        optional ReadWriteKeyValue.Request key_value = 5;
     }
     /**
      * This is what the state machine outputs for read-write commands from the
@@ -425,7 +436,7 @@ message StateMachineCommand {
         optional CloseSession.Response close_session = 4;
         optional ReadWriteTree.Response tree = 2;
         optional AdvanceStateMachineVersion.Response advance_version = 3;
-        optional ReadOnlyKeyValue.Response key_value = 5;
+        optional ReadWriteKeyValue.Response key_value = 5;
     }
 }
 
