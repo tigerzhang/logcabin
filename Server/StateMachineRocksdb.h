@@ -74,9 +74,6 @@ class StateMachineRocksdb : public StateMachineBase {
 public:
     static std::unique_ptr<rocksdb::DB> openStateMachineDb(Globals& globals);
 
-    rocksdb::Status putRdb(const std::string& key, const std::string& value);
-    rocksdb::Status getRdb(const std::string& key, std::string* value) const;
-
     virtual int put(const std::string &key, const std::string &value);
 
     virtual int get(const std::string &key, std::string *value) const;

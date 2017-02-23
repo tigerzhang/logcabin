@@ -141,13 +141,15 @@ void StateMachineRocksdb::loadSnapshotLoadData(Core::ProtoBuf::InputStream &stre
 }
 
 int StateMachineRocksdb::put(const std::string &key, const std::string &value) {
-    rocksdb::Status status = putRdb(key, value);
-    return status.ok() ? 0 : -1;
+    rocksdb::WriteOptions writeOptions = rocksdb::WriteOptions();
+    writeOptions.disableWAL = true;
+    rocksdb::Status s = _rdb->Put(writeOptions, key, value);
+    return s.ok() ? 0 : -1;
 }
 
 int StateMachineRocksdb::get(const std::string &key, std::string *value) const {
-    rocksdb::Status status = getRdb(key, value);
-    return status.ok() ? 0 : -1;
+    rocksdb::Status s = _rdb->Get(rocksdb::ReadOptions(), key, value);
+    return s.ok() ? 0 : -1;
 }
 
 static void _mkdir(const char *dir) {
@@ -202,24 +204,6 @@ StateMachineRocksdb::openStateMachineDb(Globals& globals) {
     }
     assert(s.ok());
     return rdb;
-}
-
-rocksdb::Status
-StateMachineRocksdb::putRdb(
-        const std::string& key, const std::string& value) {
-    rocksdb::WriteOptions writeOptions = rocksdb::WriteOptions();
-    writeOptions.disableWAL = true;
-    rocksdb::Status s = _rdb->Put(writeOptions, key, value);
-    assert(s.ok());
-    return s;
-}
-
-rocksdb::Status
-StateMachineRocksdb::getRdb(
-        const std::string &key, std::string *value) const {
-    rocksdb::Status s = _rdb->Get(rocksdb::ReadOptions(), key, value);
-//	assert(s.ok());
-    return s;
 }
 
 void *StateMachineRocksdb::createSnapshotPoint() {
