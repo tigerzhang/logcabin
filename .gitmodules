@@ -1,10 +1,6 @@
 [submodule "rocksdb"]
 	path = rocksdb
 	url = https://github.com/facebook/rocksdb
-[submodule "redis"]
-	path = redis
-	url = https://github.com/TigerZhang/redis.git
-	branch = reloadrdbfrom
 [submodule "redis3m"]
 	path = redis3m
 	url = https://github.com/yunba/redis3m
@@ -12,3 +8,7 @@
 [submodule "gtest"]
 	path = gtest
 	url = https://github.com/logcabin/gtest
+[submodule "redis"]
+	path = redis
+	url = https://github.com/TigerZhang/redis
+	branch = reloadrdbfrom
