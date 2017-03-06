@@ -15,5 +15,3 @@
 Makefile
 data
 RedisServer/*.o
-redis3m
-rocksdb
