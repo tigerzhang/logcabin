@@ -13,12 +13,17 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <Core/Debug.h>
+#include <zconf.h>
 #include "RedisServerLib.h"
+#include <event2/listener.h>
+#include <csignal>
 
 #define TIMEOUT_CLOSE      3600
 #define TIMEVAL_TIME       600
 
-RedisConnectorBase::RedisConnectorBase()
+RedisConnectorBase::RedisConnectorBase() :
+quit(false)
 {
     bev = NULL;
     activetime = time(NULL);
@@ -70,8 +75,6 @@ void RedisConnectorBase::SetSocketOpt()
 
 RedisServerBase::RedisServerBase()
 {
-    evbase = event_base_new();
-    assert(evbase != NULL);
     sessionbase = 1000;
     mCmdCount = 0;
     bAuth = false;
@@ -79,7 +82,7 @@ RedisServerBase::RedisServerBase()
 
 RedisServerBase::~RedisServerBase()
 {
-    event_base_free(evbase);
+    event_base_free(base);
 }
 
 int RedisServerBase::ParaseLength(const char* ptr, int size, int &head_count)
@@ -183,6 +186,7 @@ bool RedisServerBase::ProcessCmd(RedisConnectorBase *pConnector)
 bool RedisServerBase::SetCmdTable(const char* cmd, CmdCallback fun)
 {
     if ((NULL == cmd) || (NULL == fun) || (mCmdCount >= CMD_CALLBACK_MAX)) {
+        assert(false);
         return false;
     }
     mCmdTables[mCmdCount].cmd = cmd;
@@ -203,6 +207,8 @@ CmdFun * RedisServerBase::GetCmdProcessFun(const char *cmd)
 
 void RedisServerBase::DoCmd(RedisConnectorBase *pConnector)
 {
+//    printf("Got Command: %s\n", pConnector->argv[0]);
+
     CmdFun *cmd = GetCmdProcessFun(pConnector->argv[0]);
     if (cmd) {
         if (CheckSession(pConnector)) {
@@ -211,6 +217,8 @@ void RedisServerBase::DoCmd(RedisConnectorBase *pConnector)
     } else {
         if (0 == strncasecmp(pConnector->argv[0], "AUTH",4)) {
             ProcessCmd_auth(pConnector);
+        } else if (0 == strncasecmp(pConnector->argv[0], "QUIT", 4)) {
+            ProcessCmd_quit(pConnector);
         } else {
             SendErrReply(pConnector, pConnector->argv[0], "not suport");
         }
@@ -218,18 +226,22 @@ void RedisServerBase::DoCmd(RedisConnectorBase *pConnector)
     pConnector->FreeArg();
 }
 
-void RedisServerBase::AcceptCallback(evutil_socket_t listener, short event, void *arg)
+void RedisServerBase::listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
+                                  struct sockaddr *sa, int socklen, void *user_data)
 {
-    class RedisServerBase *pRedisvr = (class RedisServerBase *)arg;
-    evutil_socket_t fd;
-    struct sockaddr_in sin;
-    socklen_t slen;
-    fd = accept(listener, (struct sockaddr *)&sin, &slen);
-    if (fd < 0) {
+    class RedisServerBase *pRedisvr = (class RedisServerBase *)user_data;
+
+    struct event_base *base = pRedisvr->base;
+    struct bufferevent *bev;
+
+    bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+    if (!bev) {
+        fprintf(stderr, "Error constructing bufferevent!");
+        event_base_loopbreak(base);
         return;
     }
-    evutil_make_socket_nonblocking(fd);
 
+    printf("New Connectioin %d\n", fd);
     pRedisvr->MallocConnection(fd);
 }
 
@@ -276,6 +288,11 @@ void RedisServerBase::TimeoutCallback(int fd, short event, void *arg)
 {
     RedisConnectorBase *pConnector = reinterpret_cast<RedisConnectorBase*>(arg);
     RedisServerBase *pRedisvr = pConnector->xredisvr;
+
+    if (pConnector->quit) {
+        pRedisvr->FreeConnection(pConnector->sid);
+    }
+
     if (pConnector->OnTimer()) {
         struct timeval tv;
         evutil_timerclear(&tv);
@@ -311,49 +328,71 @@ void RedisServerBase::ErrorCallback(struct bufferevent *bev, short event, void *
 
 bool RedisServerBase::Start(const char* ip, int port)
 {
-    if (BindPort(ip, port)) {
-        return Run();
-    }
+    main_loop(ip, port);
     return false;
 }
 
-bool RedisServerBase::BindPort(const char* ip, int port)
+static void
+signal_cb(evutil_socket_t sig, short events, void *user_data)
 {
+    struct event_base *base = (struct event_base *)user_data;
+    struct timeval delay = { 2, 0 };
+
+    printf("Caught an interrupt signal; exiting cleanly in two seconds.\n");
+
+    event_base_loopexit(base, &delay);
+}
+
+int RedisServerBase::main_loop(const char *ip, int port)
+{
+    struct event *signal_event;
+
+    base = event_base_new();
+    assert(base != NULL);
+
     if (NULL==ip) {
-        return false;
+        return 1;
     }
-    evutil_socket_t listener;
-    listener = socket(AF_INET, SOCK_STREAM, 0);
-    if (listener<=0){
-        return false;
-    }
-    evutil_make_socket_nonblocking(listener);
-    evutil_make_listen_socket_reuseable(listener);
+    struct evconnlistener *listener;
 
     struct sockaddr_in sin;
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = inet_addr(ip);
     sin.sin_port = htons(port);
 
-    if (bind(listener, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-        return false;
+    event_enable_debug_logging(EVENT_DBG_ALL);
+
+    listener = evconnlistener_new_bind(base, listener_cb, (void *)this,
+                                       LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE, -1,
+                                       (struct sockaddr*)&sin,
+                                       sizeof(sin));
+    if (!listener) {
+        fprintf(stderr, "Could not create a listener!\n");
+        return 1;
     }
 
-    if (listen(listener, 128) < 0) {
-        return false;
+    signal_event = evsignal_new(base, SIGINT, signal_cb, (void *)base);
+
+    if (!signal_event || event_add(signal_event, NULL)<0) {
+        fprintf(stderr, "Could not create/add a signal event!\n");
+        return 1;
     }
 
-    struct event *listen_event;
-    listen_event = event_new(evbase, listener, EV_READ | EV_PERSIST, AcceptCallback, (void*)this);
-    event_add(listen_event, NULL);
+    event_base_dispatch(base);
 
-    return true;
+    evconnlistener_free(listener);
+    event_free(signal_event);
+    event_base_free(base);
+
+    printf("done\n");
+
+    return 0;
 }
 
 bool RedisServerBase::Run()
 {
     pthread_t pid;
-    int ret = pthread_create(&pid, NULL, Dispatch, evbase);
+    int ret = pthread_create(&pid, NULL, Dispatch, base);
     return (0==ret);
 }
 
@@ -367,6 +406,20 @@ void *RedisServerBase::Dispatch(void *arg){
     return NULL;
 }
 
+void
+RedisServerBase::conn_writecb(struct bufferevent *bev, void *user_data)
+{
+    RedisConnectorBase *pConnector = (RedisConnectorBase*)user_data;
+    RedisServerBase *pRedisvr = pConnector->xredisvr;
+
+    struct evbuffer *output = bufferevent_get_output(bev);
+    if (evbuffer_get_length(output) == 0 && pConnector->quit) {
+        printf("flushed answer\n");
+//        bufferevent_free(bev);
+        pRedisvr->FreeConnection(pConnector->sid);
+    }
+}
+
 bool RedisServerBase::MallocConnection(evutil_socket_t skt)
 {
     RedisConnectorBase *pConnector = new RedisConnectorBase;
@@ -377,15 +430,15 @@ bool RedisServerBase::MallocConnection(evutil_socket_t skt)
     pConnector->fd = skt;
     pConnector->xredisvr = this;
     pConnector->sid = sessionbase++;
-    pConnector->bev = bufferevent_socket_new(evbase, skt, BEV_OPT_CLOSE_ON_FREE);
-    bufferevent_setcb(pConnector->bev, ReadCallback, NULL, ErrorCallback, pConnector);
+    pConnector->bev = bufferevent_socket_new(base, skt, BEV_OPT_CLOSE_ON_FREE);
+    bufferevent_setcb(pConnector->bev, ReadCallback, conn_writecb, ErrorCallback, pConnector);
     pConnector->SetSocketOpt();
 
     struct timeval tv;
     tv.tv_sec = TIMEVAL_TIME;
     tv.tv_usec = 0;
     evtimer_set(&pConnector->evtimer, TimeoutCallback, pConnector);
-    event_base_set(evbase, &pConnector->evtimer);
+    event_base_set(base, &pConnector->evtimer);
     evtimer_add(&pConnector->evtimer, &tv);
 
     bufferevent_enable(pConnector->bev, EV_READ | EV_WRITE | EV_PERSIST);
@@ -406,6 +459,8 @@ RedisConnectorBase* RedisServerBase::FindConnection(uint32_t sid)
 
 bool RedisServerBase::FreeConnection(uint32_t sid)
 {
+    printf("Free Connection %u\n", sid);
+
     std::map<uint32_t, RedisConnectorBase*>::iterator iter = connectionmap.find(sid);
     if (iter == connectionmap.end()) {
         return false;
@@ -514,5 +569,16 @@ void RedisServerBase::ProcessCmd_auth(RedisConnectorBase *pConnector)
 
     SendStatusReply(pConnector, "OK");
     return;
+}
+
+void RedisServerBase::ProcessCmd_quit(RedisConnectorBase *pConnector) {
+    if (1 != pConnector->argc) {
+        SendErrReply(pConnector, "arg error", "argc error");
+        return;
+    }
+
+    SendStatusReply(pConnector, "OK");
+
+    pConnector->quit = true;
 }
 

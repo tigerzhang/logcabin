@@ -28,7 +28,7 @@ extern "C" {
 #include <map>
 using namespace std;
 
-#define CMD_CALLBACK_MAX 64
+#define CMD_CALLBACK_MAX 512
 
 
 class RedisServerBase;
@@ -63,6 +63,7 @@ private:
     int argnum;
     int parsed;
     bool authed;
+    bool quit;
 };
 
 
@@ -98,7 +99,7 @@ public:
     int SendRawReply(RedisConnectorBase *pConnector, std::string& rawString);
 
 private:
-    bool BindPort(const char* ip, int port);
+    int main_loop(const char *ip, int port);
     bool MallocConnection(evutil_socket_t skt);
     RedisConnectorBase* FindConnection(uint32_t sid);
     bool FreeConnection(uint32_t sid);
@@ -108,7 +109,8 @@ private:
     bool Run();
 
     static void *Dispatch(void *arg);
-    static void AcceptCallback(evutil_socket_t listener, short event, void *arg);
+    static void listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
+                            struct sockaddr *sa, int socklen, void *user_data);
     static void ReadCallback(struct bufferevent *bev, void *arg);
     static void ErrorCallback(struct bufferevent *bev, short event, void *arg);
     static void WriteCallback(struct bufferevent *bev, void *arg);
@@ -125,13 +127,17 @@ private:
     bool CheckSession(RedisConnectorBase *pConnector);
     void ProcessCmd_auth(RedisConnectorBase *pConnector);
 private:
-    struct event_base *evbase;
+    struct event_base *base;
     std::map<uint32_t, RedisConnectorBase*> connectionmap;
     uint32_t    sessionbase;
     CmdFun mCmdTables[CMD_CALLBACK_MAX];
     int    mCmdCount;
     bool bAuth;
     std::string pass;
+
+    void ProcessCmd_quit(RedisConnectorBase *pBase);
+
+    static void conn_writecb(bufferevent *bev, void *user_data);
 };
 
 #endif

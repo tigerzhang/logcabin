@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
-add_definitions(-DROCKSDB_STATEMACHINE)
-#add_definitions(-DREDIS_STATEMACHINE)
+# add_definitions(-DROCKSDB_STATEMACHINE)
+add_definitions(-DREDIS_STATEMACHINE)
 
 find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
 set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/Protocol)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3 -fpermissive")
 set(SERVER_FILES "Server/ClientService.cc"
     "Server/ControlService.cc"
     "Server/Globals.cc"
@@ -80,7 +80,7 @@ set(CORE_FILES "Core/Buffer.cc"
 
 set(REDISSERVER_FILES
         "RedisServer/RedisServerLib.cc"
-        "RedisServer/sds.c"
+        "RedisServer/sds.cc"
         )
 
 PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTOCOL_FILES})
@@ -111,21 +111,31 @@ set(SOURCE_FILES
     ${REDISSERVER_FILES}
         ${REDIS_CPP_FILES})
 
+set(HIREDIS_FILES
+        "hiredis/async.c"
+        "hiredis/hiredis.c"
+        "hiredis/read.c"
+        "hiredis/dict.c"
+        "hiredis/net.c"
+        "hiredis/sds.c")
+
 find_library(LZ4_LIB_STATIC NAMES liblz4.a)
 find_library(PROTOBUF_LIB_STATIC NAMES libprotobuf.a)
 find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
-find_library(HIREDIS_LIB_STATIC NAMES libhiredis.a)
+# find_library(HIREDIS_LIB_STATIC NAMES libhiredis.a)
+set(HIREDIS_LIB_STATIC ${CMAKE_SOURCE_DIR}/hiredis/libhiredis.a)
 find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
 find_library(BZ2_LIB_STATIC NAMES libbz2.a)
 find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
-find_library(EVENT_LIB_STATIC NAMES libevent.a)
+#find_library(EVENT_LIB_STATIC NAMES libevent.a)
+file(GLOB EVENT_LIB_STATIC "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/.libs/*.a")
 find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
 set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a
-        ${LZ4_LIB_STATIC} ${PROTOBUF_LIB_STATIC} ${CRYPTOPP_LIB_STATIC} ${HIREDIS_LIB_STATIC}
+        ${LZ4_LIB_STATIC} ${PROTOBUF_LIB_STATIC} ${CRYPTOPP_LIB_STATIC}
         pthread rt ${SNAPPY_LIB_STATIC} z ${BZ2_LIB_STATIC} ${JEMALLOC_LIB_STATIC} ${EVENT_LIB_STATIC} ${BOOST_SYSTEM_LIB_STATIC})
-add_executable(LogCabin ${SOURCE_FILES})
+add_executable(LogCabin ${SOURCE_FILES} ${REDISSERVER_FILES} ${HIREDIS_FILES})
 target_link_libraries(LogCabin ${LIBS})
-include_directories(${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include rocksdb/include)
+include_directories(${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/include ${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include rocksdb/include)
 
 add_library(logcabin STATIC
         ${CLIENT_FILES}
@@ -151,12 +161,14 @@ add_executable(ReconfigureTest ${CMAKE_SOURCE_DIR}/Examples/ReconfigureTest.cc)
 target_link_libraries(ReconfigureTest logcabin ${LIBS})
 add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc)
 target_link_libraries(SmokeTest logcabin ${LIBS})
-add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FILES})
+add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FILES} ${HIREDIS_FILES})
 target_link_libraries(TreeOps logcabin ${LIBS})
-add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
+add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc ${HIREDIS_FILES})
 target_link_libraries(ServerControl logcabin ${LIBS})
 add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources})
 target_link_libraries(Tool logcabin ${LIBS} pthread)
+add_executable(RedisProxy ${CMAKE_SOURCE_DIR}/Examples/RedisProxy.cc ${REDISSERVER_FILES} ${HIREDIS_FILES})
+target_link_libraries(RedisProxy logcabin ${LIBS})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
 
@@ -186,7 +198,7 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${SERVER_TEST_FILES}
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
-add_executable(Test ${TEST_SOURCE_FILES})
+add_executable(Test ${TEST_SOURCE_FILES} ${REDISSERVER_FILES} ${HIREDIS_FILES})
 target_link_libraries(Test logcabin ${LIBS} ${CMAKE_SOURCE_DIR}/gtest/build/libgtest.a)
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)

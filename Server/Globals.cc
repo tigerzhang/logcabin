@@ -33,6 +33,8 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include <hiredis/hiredis.h>
+
 namespace LogCabin {
 namespace Server {
 
@@ -191,7 +193,8 @@ Globals::init()
 #ifdef REDIS_STATEMACHINE
     if (!stateMachine) {
         NOTICE("Connecting redis...");
-//        redisConnection = redis3m::connection::create("localhost", 6579);
+        /*
+        // redisConnection = redis3m::connection::create("localhost", 6379);
         std::string redisAddress =
                 config.read<std::string>("redisAddress", std::string(""));
         if (redisAddress == "") {
@@ -214,6 +217,27 @@ Globals::init()
         redis3m::reply reply = redisConnection->run(redis3m::command("PING"));
         NOTICE("Ping redis: %s", reply.str().c_str());
         void *conn = (void *)redisConnection.get();
+         */
+
+        redisContext *c;
+        struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+        c = redisConnectWithTimeout("localhost", 16379, timeout);
+        if (c == NULL || c->err) {
+            if (c) {
+                printf("Connection error: %s\n", c->errstr);
+                redisFree(c);
+            } else {
+                printf("Connection error: can't allocate redis context\n");
+            }
+            exit(1);
+        }
+
+        // make sure the state machine is empty
+        NOTICE("Clean state machine (Redis)");
+        redisCommand(c, "FLUSHALL");
+
+        void *conn = c;
+
         stateMachine.reset(new StateMachineRedis(raft, config, *this,
                                                  conn));
     }

@@ -15,6 +15,7 @@
  */
 
 #include <string.h>
+#include <Client.pb.h>
 
 #include "Client.pb.h"
 #include "Core/Buffer.h"
@@ -175,7 +176,11 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
         return;
     }
 
-    response.mutable_tree()->set_error(globals.stateMachine->lastApplyResult);
+    if (request.has_key_value()) {
+        response.mutable_key_value()->set_error(globals.stateMachine->lastApplyResult);
+    } else if (request.has_tree()) {
+        response.mutable_tree()->set_error(globals.stateMachine->lastApplyResult);
+    }
     VVERBOSE("lastApplyResult: %s", globals.stateMachine->lastApplyResult.c_str());
 
     rpc.reply(response);

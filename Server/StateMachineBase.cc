@@ -20,6 +20,8 @@
 #include <rocksdb/status.h>
 #include <Client.pb.h>
 #include <SnapshotStateMachine.pb.h>
+#include <include/LogCabin/Client.h>
+#include <ServerStats.pb.h>
 
 #include "Core/Debug.h"
 #include "Core/Mutex.h"
@@ -147,7 +149,7 @@ StateMachineBase::query(const Query::Request& request,
             response.mutable_key_value()->set_status(Protocol::Client::Status::OK);
             return true;
         } else {
-            response.mutable_key_value()->set_error("TODO error message");
+            response.mutable_key_value()->set_error(contents);
             response.mutable_key_value()->set_status(Protocol::Client::Status::LOOKUP_ERROR);
             return true;
         }

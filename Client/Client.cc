@@ -443,9 +443,11 @@ Tree::kvwrite(const std::string& key, const std::string& value)
             ClientImpl::absTimeout(treeDetails->timeoutNanos));
 }
 
-void Tree::kvwriteEx(const std::string& key, const std::string& value)
+Result Tree::kvwriteEx(const std::string& key, const std::string& value)
 {
-    throwException(kvwrite(key, value), treeDetails->timeoutNanos);
+    Result result = kvwrite(key, value);
+    throwException(result, treeDetails->timeoutNanos);
+    return result;
 }
 
 Result

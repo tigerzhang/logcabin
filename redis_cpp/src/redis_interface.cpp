@@ -1,6 +1,7 @@
 #include "../include/redis_interface.hpp"
 #include "../include/debug.hpp"
 #include <boost/array.hpp>
+#include <iostream>
 using boost::asio::ip::tcp;
 
 namespace rediscpp {

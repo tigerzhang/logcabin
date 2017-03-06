@@ -23,9 +23,9 @@ public:
             Globals& globals, void *kvstore);
     virtual ~StateMachineRedis() {}
 
+
     virtual void takeSnapshotWriteData(uint64_t lastIncludedIndex,
-                               Core::ProtoBuf::OutputStream& writer);
-    virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream);
+                                       Storage::SnapshotFile::Writer *writer);
 
     int put(const std::string &key, const std::string &value);
 
@@ -33,7 +33,14 @@ public:
 
 //    int initKVStore();
 
-    int kvget(const std::string &key, std::string *value) const;
+    virtual void* createSnapshotPoint();
+    virtual void snapshotDone();
+
+protected:
+    virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream);
+
+private:
+    redisReply *getReply(const std::string &key) const;
 };
 
 }

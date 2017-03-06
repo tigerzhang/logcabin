@@ -521,7 +521,7 @@ class Tree {
     Result
     kvwrite(const std::string& key, const std::string& value);
 
-    void kvwriteEx(const std::string& key, const std::string& value);
+    Result kvwriteEx(const std::string& key, const std::string& value);
 
     Result
     kvread(const std::string& key, std::string& value);

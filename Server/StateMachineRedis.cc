@@ -4,6 +4,7 @@
 
 #include <exception>
 #include <redis3m/redis3m.hpp>
+#include "../RedisServer/sds.h"
 #include "Server/RaftConsensus.h"
 #include "StateMachineBase.h"
 #include "StateMachineRedis.h"
@@ -17,6 +18,7 @@
 //#include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
 #include <fcntl.h>
+#include <hiredis/hiredis.h>
 
 namespace LogCabin {
 namespace Server {
@@ -25,147 +27,83 @@ namespace Server {
 //    return 0;
 //}
 
-int StateMachineRedis::put(const std::string &key, const std::string &value) {
-    try {
-        redis3m::connection *connection = ((redis3m::connection *) kvstore);
-        if (value.compare(0, 3, "sub") == 0) {
-            VVERBOSE("Sub command: %s", value.c_str());
-            std::string uid = "0";
-//            auto command = split(value, ' ');
-            std::vector<std::string> command;
-            boost::split(command, value, boost::is_any_of(" "));
+int encodeRedisReply(redisReply *reply, std::string &str);
+int encodeRedisReply(redisReply *reply, std::string &str) {
+    int ret = 0;
+    char buf[128];
+    switch (reply->type) {
+        case REDIS_REPLY_STRING: {
+            str += '$';
 
-            float_t score = 0;
-            if (command.size() == 2) {
-                uid = command[1];
-            } else if (command.size() == 3) {
-                score = std::stof(command[1]);
-                uid = command[2];
-            } else {
-                ERROR("bad sub command: %s", value.c_str());
-                return 0;
-            }
+            snprintf(buf, 128, "%lu", reply->len);
+            str += buf;
+            str += "\r\n";
 
-            redis3m::reply reply = connection->run(redis3m::command("ZADD") << key << score << uid);
-            if (reply.type() == redis3m::reply::type_t::ERROR) {
-                VVERBOSE("Sub failed: %s", reply.str().c_str());
-                return -1;
-            }
-        } else if (value.compare(0, 5, "unsub") == 0) {
-            VVERBOSE("Unsub command: %s", value.c_str());
-            std::string uid = value.substr(6);
-            redis3m::reply reply = connection->run(redis3m::command("ZREM") << key << uid);
-
-            if (reply.type() == redis3m::reply::type_t::ERROR) {
-                VVERBOSE("Unsub failed: %s", reply.str().c_str());
-                return -1;
-            }
-        } else {
-            std::string realKey = key;
-            if (key.substr(0, 1) == "/") {
-                realKey = key.substr(1, key.size() - 1);
-            }
-            redis3m::reply reply = connection->run(redis3m::command("SET") << realKey << value);
-//            lastApplyResult = reply.str();
-            VVERBOSE("redis3m reply: %d %s", reply.type(), reply.str().c_str());
-            if (reply.type() == redis3m::reply::type_t::STATUS) {
-                rediscpp::protocol::EncodeString(reply.str(), lastApplyResult);
-            } else if (reply.type() == redis3m::reply::type_t::ERROR) {
-                rediscpp::protocol::EncodeError(reply.str(), lastApplyResult);
-//                return -1;
-            } else if (reply.type() == redis3m::reply::type_t::INTEGER) {
-                rediscpp::protocol::EncodeInteger(reply.integer(), lastApplyResult);
+            std::string s(reply->str, reply->len);
+            str += s;
+            str += "\r\n";
+        }
+            break;
+        case REDIS_REPLY_ARRAY: {
+            snprintf(buf, 128, "*%lu\r\n", reply->elements);
+            str += buf;
+            for (auto i = 0; i < reply->elements; i++) {
+                encodeRedisReply(reply->element[i], str);
             }
         }
-    } catch (std::invalid_argument &e) {
-        ERROR("StateMachineRedis::put invalid_argument: %s. key[%s] value[%s]. Skipped",
-              e.what(), key.c_str(), value.c_str());
-
-        return 0;
-    } catch (std::exception &e) {
-        ERROR("StateMachineRedis::put exception: %s. key[%s] value[%s]",
-              e.what(), key.c_str(), value.c_str());
-
-        return -1;
+            break;
+        case REDIS_REPLY_INTEGER:
+            str += ':';
+            snprintf(buf, 128, "%lld", reply->integer);
+            str += buf;
+            str += "\r\n";
+            break;
+        case REDIS_REPLY_NIL:
+            str += "$-1\r\n";
+            break;
+        case REDIS_REPLY_STATUS:
+            str += '+';
+            str += reply->str;
+            str += "\r\n";
+            break;
+        case REDIS_REPLY_ERROR:
+            str += '-';
+            str += reply->str;
+            str += "\r\n";
+            break;
+        default:
+            str += "$-1\r\n";
+            ret = -1;
     }
-
-    return 0;
+    return ret;
 }
 
-int StateMachineRedis::kvget(const std::string &key, std::string *value) const {
-    redis3m::connection *connection = ((redis3m::connection *) kvstore);
-    redis3m::command cmd("get");
-    redis3m::reply reply = connection->run(cmd << key);
-    if (reply.type() == redis3m::reply::type_t::STRING) {
-        *value = reply.str();
-    }
+redisReply *StateMachineRedis::getReply(const std::string &key) const {
+    redisReply *reply;
+    redisContext *c = (redisContext *) kvstore;
 
-    return 0;
+    // TODO: make sure the request(key) is a valid redis request
+
+    VVERBOSE("set key: %s", key.c_str());
+    sds sdsnew;
+    sdsnew = sdscatlen(c->obuf, key.c_str(), key.length());
+    c->obuf = sdsnew;
+    VVERBOSE("obuf: %s", c->obuf);
+    redisGetReply(c, (void**)&reply);
+    return reply;
+}
+
+int StateMachineRedis::put(const std::string &key, const std::string &value) {
+    redisReply *reply = getReply(key);
+    lastApplyResult.clear();
+    return encodeRedisReply(reply, lastApplyResult);
 }
 
 int StateMachineRedis::get(const std::string &key, std::string *value) const {
-    redis3m::command cmd;
-    if (key.substr(0, 1) == "/") {
-//        boost::algorithm::trim_right_if(key, boost::is_any_of("/"));
-
-        std::string cmdstr = key.substr(1, key.length() - 1);
-
-        std::vector<std::string> SplitVec;
-        boost::split(SplitVec, cmdstr, boost::is_any_of(" "));
-
-        if (SplitVec.size() > 0) {
-            cmd = redis3m::command(SplitVec[0]);
-            for (auto i = 1; i < SplitVec.size(); i++) {
-                cmd = cmd << SplitVec[i];
-            }
-        } else {
-            return 0;
-        }
-    } else {
-        return 0;
-    }
-    redis3m::connection *connection = ((redis3m::connection *) kvstore);
-//    redis3m::reply reply = connection->run(redis3m::command("ZRANGE") << key << 0 << -1 << "WITHSCORES");
-    try {
-        VVERBOSE("cmd: %s", cmd.toDebugString().c_str());
-        redis3m::reply reply = connection->run(cmd);
-        if (reply.type() == redis3m::reply::type_t::ERROR) {
-            VVERBOSE("ZRANGE failed: %s", reply.str().c_str());
-            return -1;
-        }
-
-        VVERBOSE("reply type: %d", reply.type());
-        std::string reply_str;
-        if (reply.type() == redis3m::reply::type_t::ARRAY) {
-            std::vector<std::string> reply_vec;
-            for (auto &element : reply.elements()) {
-                if (element.type() == redis3m::reply::type_t::STRING) {
-//                reply_str += element.str() + "\n";
-                    reply_vec.push_back(element.str());
-                    VVERBOSE("str %s", element.str().c_str());
-                } else if (element.type() == redis3m::reply::type_t::INTEGER) {
-                    char buf[64];
-                    snprintf(buf, 64, "%lld", element.integer());
-                    reply_vec.push_back(buf);
-                    VVERBOSE("int %lld", element.integer());
-                }
-            }
-            rediscpp::protocol::EncodeBulkStringArray(reply_vec, reply_str);
-        } else if (reply.type() == redis3m::reply::type_t::STRING) {
-            VVERBOSE("reply string: %s", reply.str().c_str());
-//        reply_str = reply.str();
-            rediscpp::protocol::EncodeBulkString(reply.str(), reply_str);
-        } else if (reply.type() == redis3m::reply::type_t::STATUS) {
-//        reply_str = "+" + reply.str();
-            rediscpp::protocol::EncodeString(reply.str(), reply_str);
-        }
-
-        *value = reply_str;
-        return 0;
-    } catch (const redis3m::transport_failure& ex) {
-        VVERBOSE("redis3m::transport_failure %s", ex.what());
-        return -1;
-    }
+    redisReply *reply = getReply(key);
+    value->clear();
+    int ret = encodeRedisReply(reply, *value);
+    return ret;
 }
 
 StateMachineRedis::StateMachineRedis(std::shared_ptr<RaftConsensus> consensus, Core::Config &config,
@@ -173,36 +111,64 @@ StateMachineRedis::StateMachineRedis(std::shared_ptr<RaftConsensus> consensus, C
         : StateMachineBase(consensus, config, globals, kvstore) {
 }
 
+
 void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
-                                              Core::ProtoBuf::OutputStream &writer) {
-    redis3m::connection *connection = ((redis3m::connection *) kvstore);
+                                   Storage::SnapshotFile::Writer *writer) {
+//    redis3m::connection *connection = ((redis3m::connection *) kvstore);
+    redisContext *conn = (redisContext *)kvstore;
 
-    redis3m::reply reply = connection->run(
-            redis3m::command("CONFIG") << "SET" << "dir"
-                                       << globals.raft->getStorageLayout().snapshotDir.path);
+//    redis3m::reply reply = connection->run(
+//            redis3m::command("CONFIG") << "SET" << "dir"
+//                                       << globals.raft->getStorageLayout().snapshotDir.path);
+    char buf[2048];
+    snprintf(buf, 2048, "CONFIG SET dir %s", globals.raft->getStorageLayout().snapshotDir.path.c_str());
+    redisReply *reply = (redisReply *)redisCommand(conn, buf);
+    assert(reply->type == REDIS_REPLY_STATUS);
 
-    connection->run(redis3m::command("CONFIG") << "REWRITE");
+//    connection->run(redis3m::command("CONFIG") << "REWRITE");
+    redisCommand(conn, "CONFIG REWRITE");
 
-    reply = connection->run(redis3m::command("BGSAVE"));
+//    reply = connection->run(redis3m::command("BGSAVE"));
+    reply = (redisReply *)redisCommand(conn, "BGSAVE");
 //    if (reply.type() == redis3m::reply::type_t::STRING) {
-    assert(reply.str() == "Background saving started");
+    VERBOSE("BGSAVE return: %s", reply->str);
+    assert(strcmp(reply->str, "Background saving started") == 0);
 
     bool done = false;
     while (!done) {
         usleep(1000 * 1000);
-        reply = connection->run(redis3m::command("INFO") << "Persistence");
-        VVERBOSE("reply type: %d", reply.type());
-        if (reply.type() == redis3m::reply::type_t::STRING) {
-            auto found = reply.str().find("rdb_bgsave_in_progress:0");
-            if (found != std::string::npos) {
+//        reply = connection->run(redis3m::command("INFO") << "Persistence");
+        reply = (redisReply *)redisCommand(conn, "INFO Persistence");
+        VVERBOSE("INFO Persistence reply type: %d", reply->type);
+//        if (reply.type() == redis3m::reply::type_t::STRING) {
+//            auto found = reply.str().find("rdb_bgsave_in_progress:0");
+//            if (found != std::string::npos) {
+//                done = true;
+//                break;
+//            }
+//        }
+        if (reply->type == REDIS_REPLY_STRING) {
+            VVERBOSE("%s", reply->str);
+            auto found = strstr(reply->str, "rdb_bgsave_in_progress:0");
+            if (found != nullptr) {
                 done = true;
                 break;
             }
         }
-        if (reply.type() == redis3m::reply::type_t::ARRAY) {
-            for (auto &element : reply.elements()) {
-                VVERBOSE("%s", element.str().c_str());
-                if (element.str() == "rdb_bgsave_in_progress:0") {
+//        if (reply.type() == redis3m::reply::type_t::ARRAY) {
+//            for (auto &element : reply.elements()) {
+//                VVERBOSE("%s", element.str().c_str());
+//                if (element.str() == "rdb_bgsave_in_progress:0") {
+//                    done = true;
+//                    break;
+//                }
+//            }
+//        }
+        if (reply->type == REDIS_REPLY_ARRAY) {
+            for (int i = 0; i < reply->elements; i++) {
+                VVERBOSE("%s", reply->element[i]->str);
+                if (strcmp(reply->element[i]->str,
+                           "rdb_bgsave_in_progress:0") == 0) {
                     done = true;
                     break;
                 }
@@ -210,20 +176,28 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
         }
     }
 
-    reply = connection->run(redis3m::command("CONFIG") << "GET" << "dir");
-    assert(reply.type() == redis3m::reply::type_t::ARRAY);
-    assert(reply.elements().at(0).str() == "dir");
-    std::string dir = reply.elements().at(1);
+//    reply = connection->run(redis3m::command("CONFIG") << "GET" << "dir");
+//    assert(reply.type() == redis3m::reply::type_t::ARRAY);
+//    assert(reply.elements().at(0).str() == "dir");
+//    std::string dir = reply.elements().at(1);
+    reply = (redisReply *)redisCommand(conn, "CONFIG GET dir");
+    assert(reply->type == REDIS_REPLY_ARRAY);
+    assert(strcmp(reply->element[0]->str, "dir") == 0);
+    std::string dir = reply->element[0]->str;
 
-    reply = connection->run(redis3m::command("CONFIG") << "GET" << "dbfilename");
-    assert(reply.type() == redis3m::reply::type_t::ARRAY);
-    assert(reply.elements().at(0).str() == "dbfilename");
-    std::string dbfilename = reply.elements().at(1);
+//    reply = connection->run(redis3m::command("CONFIG") << "GET" << "dbfilename");
+//    assert(reply.type() == redis3m::reply::type_t::ARRAY);
+//    assert(reply.elements().at(0).str() == "dbfilename");
+//    std::string dbfilename = reply.elements().at(1);
+    reply = (redisReply *)redisCommand(conn, "CONFIG GET dbfilename");
+    assert(reply->type == REDIS_REPLY_ARRAY);
+    assert(strcmp(reply->element[0]->str, "dbfilename") == 0);
+    std::string dbfilename = reply->element[0]->str;
 
     std::string fullname = dir + "/" + dbfilename;
     ulong size = fullname.size();
-    writer.writeRaw(&size, sizeof(size));
-    writer.writeRaw(fullname.c_str(), size);
+    writer->writeRaw(&size, sizeof(size));
+    writer->writeRaw(fullname.c_str(), size);
 
 //    Storage::FilesystemUtil::FileContents snapshotFile(
 //            Storage::FilesystemUtil::openFile(
@@ -254,8 +228,20 @@ void StateMachineRedis::loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream
     char buf[1024];
     stream.readRaw(buf, std::min(size, ulong(1024)));
 
-    redis3m::connection *connection = ((redis3m::connection *) kvstore);
-    connection->run(redis3m::command("DEBUG") << "RELOADRDBFROM" << std::string(buf));
+//    redis3m::connection *connection = ((redis3m::connection *) kvstore);
+//    connection->run(redis3m::command("DEBUG") << "RELOADRDBFROM" << std::string(buf));
+    redisContext *conn = (redisContext *)kvstore;
+    char cmd[2048];
+    snprintf(cmd, 2048, "DEBUG RELOADRDBFROM %s", buf);
+    redisCommand(conn, cmd);
+}
+
+void *StateMachineRedis::createSnapshotPoint() {
+    return nullptr;
+}
+
+void StateMachineRedis::snapshotDone() {
+
 }
 
 }
