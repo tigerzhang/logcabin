@@ -193,7 +193,10 @@ Globals::init()
 #ifdef REDIS_STATEMACHINE
     if (!stateMachine) {
         NOTICE("Connecting redis...");
-        /*
+
+        redisContext *c = NULL;
+        struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+
         // redisConnection = redis3m::connection::create("localhost", 6379);
         std::string redisAddress =
                 config.read<std::string>("redisAddress", std::string(""));
@@ -203,25 +206,25 @@ Globals::init()
             if (redisSock != "") {
                 // open unix socket
                 std::string sock_path = raft->getStorageLayout().serverDir.path + "/redis.sock";
-                NOTICE("Open redis: %s", sock_path.c_str());
-                redisConnection = redis3m::connection::create_unix(sock_path);
+                NOTICE("redisSock: %s", sock_path.c_str());
+//                redisConnection = redis3m::connection::create_unix(sock_path);
+                c = redisConnectUnix(sock_path.c_str());
             }
         } else {
             std::vector<std::string> splitVect;
             boost::split(splitVect, redisAddress, boost::is_any_of(":"));
             NOTICE("redisAddress: %s, %s", splitVect[0].c_str(), splitVect[1].c_str());
-            redisConnection = redis3m::connection::create(
-                    splitVect[0], std::stoi(splitVect[1]));
+//            redisConnection = redis3m::connection::create(
+//                    splitVect[0], std::stoi(splitVect[1]));
+            c = redisConnectWithTimeout(splitVect[0].c_str(),
+                                        std::stoi(splitVect[1].c_str()),
+                                        timeout);
         }
-        assert(redisConnection.get() != NULL);
-        redis3m::reply reply = redisConnection->run(redis3m::command("PING"));
-        NOTICE("Ping redis: %s", reply.str().c_str());
-        void *conn = (void *)redisConnection.get();
-         */
+//        assert(redisConnection.get() != NULL);
+//        redis3m::reply reply = redisConnection->run(redis3m::command("PING"));
+//        NOTICE("Ping redis: %s", reply.str().c_str());
+//        void *conn = (void *)redisConnection.get();
 
-        redisContext *c;
-        struct timeval timeout = { 1, 500000 }; // 1.5 seconds
-        c = redisConnectWithTimeout("localhost", 16379, timeout);
         if (c == NULL || c->err) {
             if (c) {
                 printf("Connection error: %s\n", c->errstr);
