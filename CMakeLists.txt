@@ -3,6 +3,77 @@ project(logcabin)
 
 # add_definitions(-DROCKSDB_STATEMACHINE)
 add_definitions(-DREDIS_STATEMACHINE)
+enable_testing()
+
+# install dependecies
+set(DEPENDENCIES lz4 jemalloc crypto++ protobuf snappy bz2 pthread-stubs0 boost-all hiredis event msgpack)
+foreach(Dep ${DEPENDENCIES})
+    string(CONCAT Dep2 lib ${Dep} -dev)
+    message("Installing Dep:  " ${Dep2})
+    execute_process(COMMAND "dpkg" -l ${Dep2} RESULT_VARIABLE res_var OUTPUT_QUIET)
+    if(NOT "${res_var}" STREQUAL "0")
+        execute_process(COMMAND "sudo" apt-get -qq install ${Dep2})
+    endif()
+endforeach(Dep)
+
+# install protobuf compiler
+set(PROTOBUF_COMPILER protobuf-compiler)
+message("Installing protobuf-compiler ...")
+execute_process(COMMAND "dpkg" -l ${PROTOBUF_COMPILER} RESULT_VARIABLE res_var OUTPUT_QUIET)
+if(NOT "${res_var}" STREQUAL "0")
+    execute_process(COMMAND "sudo" apt-get -qq install ${PROTOBUF_COMPILER})
+endif()
+
+# build submodule
+set(REDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/redis")
+execute_process(COMMAND "make"
+                WORKING_DIRECTORY ${REDIS_SOURCE_DIR})
+
+set(REDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb")
+execute_process(COMMAND "make" static_lib
+                WORKING_DIRECTORY ${REDIS_SOURCE_DIR})
+
+message(STATUS "building gtest...")
+add_subdirectory(gtest)
+
+message(STATUS "building redis3m...")
+add_subdirectory(redis3m)
+
+# Download libevent-2.1.8
+set(LIBEVENT_URL "https://github.com/libevent/libevent/releases/download/release-2.1.8-stable/libevent-2.1.8-stable.tar.gz")
+set(LIBEVENT_DOWNLOAD_PATH "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable.tar.gz")
+set(LIBEVENT_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable")
+
+if (NOT EXISTS "${LIBEVENT_EXTRACT_PATH}")
+    message("Download ${LIBEVENT_DOWNLOAD_PATH} ...")
+    file(DOWNLOAD "${LIBEVENT_URL}" "${LIBEVENT_DOWNLOAD_PATH}")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E tar xzf ${LIBEVENT_DOWNLOAD_PATH}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	    RESULT_VARIABLE res_var
+    )
+    if (${res_var} STREQUAL "0")
+        execute_process(
+                COMMAND "sh" -c ./autogen.sh
+                WORKING_DIRECTORY ${LIBEVENT_EXTRACT_PATH}
+                RESULT_VARIABLE res_var
+        )
+        execute_process(
+                COMMAND "sh" -c ./configure
+                WORKING_DIRECTORY ${LIBEVENT_EXTRACT_PATH}
+                RESULT_VARIABLE res_var
+        )
+        execute_process(
+                COMMAND "sh" -c make -j4
+                WORKING_DIRECTORY ${LIBEVENT_EXTRACT_PATH}
+                RESULT_VARIABLE res_var
+        )
+    endif()
+        
+endif()
+
+SET(SUBMODULE_LIBS gtest redis3m
+                   ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a)
 
 find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
@@ -130,9 +201,9 @@ find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
 #find_library(EVENT_LIB_STATIC NAMES libevent.a)
 file(GLOB EVENT_LIB_STATIC "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/.libs/*.a")
 find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
-set(LIBS ${CMAKE_SOURCE_DIR}/redis3m/build/libredis3m.a ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a
-        ${LZ4_LIB_STATIC} ${PROTOBUF_LIB_STATIC} ${CRYPTOPP_LIB_STATIC}
-        pthread rt ${SNAPPY_LIB_STATIC} z ${BZ2_LIB_STATIC} ${JEMALLOC_LIB_STATIC} ${EVENT_LIB_STATIC} ${BOOST_SYSTEM_LIB_STATIC})
+
+set(LIBS ${SUBMODULE_LIBS} ${LZ4_LIB_STATIC} ${PROTOBUF_LIB_STATIC} ${CRYPTOPP_LIB_STATIC} ${HIREDIS_LIB_STATIC}
+         pthread rt ${SNAPPY_LIB_STATIC} z ${BZ2_LIB_STATIC} ${JEMALLOC_LIB_STATIC} ${EVENT_LIB_STATIC} ${BOOST_SYSTEM_LIB_STATIC})
 add_executable(LogCabin ${SOURCE_FILES} ${REDISSERVER_FILES} ${HIREDIS_FILES})
 target_link_libraries(LogCabin ${LIBS})
 include_directories(${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/include ${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include rocksdb/include)
@@ -199,7 +270,7 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
 add_executable(Test ${TEST_SOURCE_FILES} ${REDISSERVER_FILES} ${HIREDIS_FILES})
-target_link_libraries(Test logcabin ${LIBS} ${CMAKE_SOURCE_DIR}/gtest/build/libgtest.a)
+target_link_libraries(Test logcabin ${LIBS})
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/ServerControl RENAME logcabinctl DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
