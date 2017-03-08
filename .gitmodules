@@ -13,5 +13,5 @@
 	url = https://github.com/TigerZhang/redis
 	branch = reloadrdbfrom
 [submodule "hiredis"]
-    path = hiredis
-    url = https://github.com/redis/hiredis
+	path = hiredis
+	url = https://github.com/redis/hiredis
