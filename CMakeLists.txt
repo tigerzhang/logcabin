@@ -6,7 +6,7 @@ add_definitions(-DREDIS_STATEMACHINE)
 enable_testing()
 
 # install dependecies
-set(DEPENDENCIES lz4 jemalloc crypto++ protobuf snappy bz2 pthread-stubs0 boost-all hiredis event msgpack)
+set(DEPENDENCIES lz4 jemalloc crypto++ protobuf snappy bz2 pthread-stubs0 boost-all msgpack)
 foreach(Dep ${DEPENDENCIES})
     string(CONCAT Dep2 lib ${Dep} -dev)
     message("Installing Dep:  " ${Dep2})
@@ -25,13 +25,20 @@ if(NOT "${res_var}" STREQUAL "0")
 endif()
 
 # build submodule
+message(STATUS "building redis...")
 set(REDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/redis")
 execute_process(COMMAND "make"
                 WORKING_DIRECTORY ${REDIS_SOURCE_DIR})
 
-set(REDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb")
+message(STATUS "building rocksdb...")
+set(ROCKSDB_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb")
 execute_process(COMMAND "make" static_lib
-                WORKING_DIRECTORY ${REDIS_SOURCE_DIR})
+                WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR})
+
+message(STATUS "building hiredis..")
+set(HIREDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/hiredis")
+execute_process(COMMAND "make"
+                WORKING_DIRECTORY ${HIREDIS_SOURCE_DIR})
 
 message(STATUS "building gtest...")
 add_subdirectory(gtest)
@@ -46,7 +53,11 @@ set(LIBEVENT_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable")
 
 if (NOT EXISTS "${LIBEVENT_EXTRACT_PATH}")
     message("Download ${LIBEVENT_DOWNLOAD_PATH} ...")
-    file(DOWNLOAD "${LIBEVENT_URL}" "${LIBEVENT_DOWNLOAD_PATH}")
+    execute_process(
+        COMMAND wget ${LIBEVENT_URL} -O ${LIBEVENT_DOWNLOAD_PATH}
+        TIMEOUT 100000 # it takes very long time
+    )
+    message("Download ${LIBEVENT_DOWNLOAD_PATH} finished.")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E tar xzf ${LIBEVENT_DOWNLOAD_PATH}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -189,15 +200,14 @@ set(HIREDIS_FILES
         "hiredis/net.c"
         "hiredis/sds.c")
 
+set(HIREDIS_LIB_STATIC ${CMAKE_SOURCE_DIR}/hiredis/libhiredis.a)
+
 find_library(LZ4_LIB_STATIC NAMES liblz4.a)
 find_library(PROTOBUF_LIB_STATIC NAMES libprotobuf.a)
 find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
-# find_library(HIREDIS_LIB_STATIC NAMES libhiredis.a)
-set(HIREDIS_LIB_STATIC ${CMAKE_SOURCE_DIR}/hiredis/libhiredis.a)
 find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
 find_library(BZ2_LIB_STATIC NAMES libbz2.a)
 find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
-#find_library(EVENT_LIB_STATIC NAMES libevent.a)
 file(GLOB EVENT_LIB_STATIC "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/.libs/*.a")
 find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
 

@@ -15,10 +15,5 @@
 Makefile
 data
 RedisServer/*.o
-hiredis
-redis
-rocksdb
-redis3m
-gtest
 libevent-2.1.8-stable
 libevent-2.1.8-stable.tar.gz
