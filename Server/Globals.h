@@ -209,12 +209,8 @@ class Globals {
      */
 #ifdef ROCKSDB_STATEMACHINE
     std::shared_ptr<Server::StateMachineBase> stateMachine;
-#else
-
-#ifdef REDIS_STATEMACHINE
+#elif (REDIS_STATEMACHINE || ARDB_STATEMACHINE)
     std::shared_ptr<Server::StateMachineRedis> stateMachine;
-#endif
-
 #endif
 
 private:

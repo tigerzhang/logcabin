@@ -41,6 +41,10 @@ protected:
 
 private:
     redisReply *getReply(const std::string &key) const;
+    void do_redis_bgsave(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer);
+    void do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer);
+    void do_redis_load_snapshot(Core::ProtoBuf::InputStream &stream);
+    void do_ardb_load_snapshot(Core::ProtoBuf::InputStream &stream);
 };
 
 }

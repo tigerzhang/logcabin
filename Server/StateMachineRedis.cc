@@ -23,10 +23,6 @@
 namespace LogCabin {
 namespace Server {
 
-//int StateMachineRedis::initKVStore() {
-//    return 0;
-//}
-
 int encodeRedisReply(redisReply *reply, std::string &str);
 int encodeRedisReply(redisReply *reply, std::string &str) {
     int ret = 0;
@@ -112,8 +108,107 @@ StateMachineRedis::StateMachineRedis(std::shared_ptr<RaftConsensus> consensus, C
 }
 
 
-void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
-                                   Storage::SnapshotFile::Writer *writer) {
+void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer) {
+
+#ifdef REDIS_STATEMACHINE
+    do_redis_bgsave(lastIncludedIndex, writer);
+#elif ARDB_STATEMACHINE
+    do_ardb_bgsave(lastIncludedIndex, writer);
+#endif
+
+}
+
+void StateMachineRedis::loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream) {
+#ifdef REDIS_STATEMACHINE
+    do_redis_load_snapshot(stream);
+#elif ARDB_STATEMACHINE
+    do_ardb_load_snapshot(stream);
+#endif
+
+}
+
+void *StateMachineRedis::createSnapshotPoint() {
+    return nullptr;
+}
+
+void StateMachineRedis::snapshotDone() {
+
+}
+
+void StateMachineRedis::do_redis_load_snapshot(Core::ProtoBuf::InputStream &stream) {
+    ulong size;
+    stream.readRaw(&size, sizeof(ulong));
+    char buf[1024];
+    stream.readRaw(buf, std::min(size, ulong(1024)));
+
+//    redis3m::connection *connection = ((redis3m::connection *) kvstore);
+//    connection->run(redis3m::command("DEBUG") << "RELOADRDBFROM" << std::string(buf));
+    redisContext *conn = (redisContext *)kvstore;
+    char cmd[2048];
+    snprintf(cmd, 2048, "DEBUG RELOADRDBFROM %s", buf);
+    redisCommand(conn, cmd);
+}
+
+void StateMachineRedis::do_ardb_load_snapshot(Core::ProtoBuf::InputStream &stream) {
+
+}
+
+void StateMachineRedis::do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer) {
+    redisContext *conn = (redisContext *)kvstore;
+    char buf[2048];
+    snprintf(buf, 2048, "CONFIG SET backup-dir %s", globals.raft->getStorageLayout().snapshotDir.path.c_str());
+    VERBOSE("backup dir is: %s", buf);
+
+    redisReply *reply = (redisReply *)redisCommand(conn, buf);
+    assert(reply->type == REDIS_REPLY_STATUS);
+
+    redisCommand(conn, "CONFIG REWRITE");
+    reply = (redisReply *)redisCommand(conn, "BGSAVE redis");
+    VERBOSE("BGSAVE return: %s", reply->str);
+    assert(strcmp(reply->str, "Background saving started") == 0);
+
+    bool done = false;
+    while (!done) {
+        usleep(1000 * 1000);
+        reply = (redisReply *)redisCommand(conn, "INFO Persistence");
+        VVERBOSE("INFO Persistence reply type: %d", reply->type);
+        if (reply->type == REDIS_REPLY_STRING) {
+            VVERBOSE("%s", reply->str);
+            auto found = strstr(reply->str, "rdb_bgsave_in_progress:0");
+            if (found != nullptr) {
+                done = true;
+                break;
+            }
+        }
+        if (reply->type == REDIS_REPLY_ARRAY) {
+            for (int i = 0; i < reply->elements; i++) {
+                VVERBOSE("%s", reply->element[i]->str);
+                if (strcmp(reply->element[i]->str,
+                           "rdb_bgsave_in_progress:0") == 0) {
+                    done = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    reply = (redisReply *)redisCommand(conn, "CONFIG GET dir");
+    assert(reply->type == REDIS_REPLY_ARRAY);
+    assert(strcmp(reply->element[0]->str, "dir") == 0);
+    std::string dir = reply->element[0]->str;
+
+    reply = (redisReply *)redisCommand(conn, "CONFIG GET dbfilename");
+    assert(reply->type == REDIS_REPLY_ARRAY);
+    assert(strcmp(reply->element[0]->str, "dbfilename") == 0);
+    std::string dbfilename = reply->element[0]->str;
+
+    std::string fullname = dir + "/" + dbfilename;
+    ulong size = fullname.size();
+    writer->writeRaw(&size, sizeof(size));
+    writer->writeRaw(fullname.c_str(), size);
+}
+
+void StateMachineRedis::do_redis_bgsave(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer) {
 //    redis3m::connection *connection = ((redis3m::connection *) kvstore);
     redisContext *conn = (redisContext *)kvstore;
 
@@ -222,27 +317,5 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
 //    }
 }
 
-void StateMachineRedis::loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream) {
-    ulong size;
-    stream.readRaw(&size, sizeof(ulong));
-    char buf[1024];
-    stream.readRaw(buf, std::min(size, ulong(1024)));
-
-//    redis3m::connection *connection = ((redis3m::connection *) kvstore);
-//    connection->run(redis3m::command("DEBUG") << "RELOADRDBFROM" << std::string(buf));
-    redisContext *conn = (redisContext *)kvstore;
-    char cmd[2048];
-    snprintf(cmd, 2048, "DEBUG RELOADRDBFROM %s", buf);
-    redisCommand(conn, cmd);
-}
-
-void *StateMachineRedis::createSnapshotPoint() {
-    return nullptr;
-}
-
-void StateMachineRedis::snapshotDone() {
-
-}
-
-}
-}
+} // namespace LogCabin::Server
+} // namespace LogCabin

@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
 # add_definitions(-DROCKSDB_STATEMACHINE)
-add_definitions(-DREDIS_STATEMACHINE)
+#add_definitions(-DREDIS_STATEMACHINE)
+add_definitions(-DARDB_STATEMACHINE)
 enable_testing()
 
 # install dependecies

@@ -188,9 +188,7 @@ Globals::init()
         std::unique_ptr<rocksdb::DB> rdb = StateMachineRocksdb::openStateMachineDb(*this);
         stateMachine.reset(new StateMachineRocksdb(raft, config, *this, std::move(rdb)));
     }
-#else
-
-#ifdef REDIS_STATEMACHINE
+#elif (REDIS_STATEMACHINE || ARDB_STATEMACHINE)
     if (!stateMachine) {
         NOTICE("Connecting redis...");
 
@@ -244,8 +242,6 @@ Globals::init()
         stateMachine.reset(new StateMachineRedis(raft, config, *this,
                                                  conn));
     }
-#endif
-
 #endif
 
 //	if (!stateMachineRocksdb) {
