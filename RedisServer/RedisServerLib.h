@@ -26,6 +26,10 @@ extern "C" {
 #include <string>
 #include <pthread.h>
 #include <map>
+#include <LogCabin/Client.h>
+
+#include "../Examples/RedisProxy.h"
+
 using namespace std;
 
 #define CMD_CALLBACK_MAX 512
@@ -33,11 +37,13 @@ using namespace std;
 
 class RedisServerBase;
 class RedisConnectorBase;
+class OptionParser;
 
 class RedisConnectorBase
 {
 public:
-    RedisConnectorBase();
+    RedisConnectorBase(std::unique_ptr<LogCabin::Client::Cluster> cluster,
+                       std::unique_ptr<LogCabin::Client::Tree> tree);
     ~RedisConnectorBase();
 
 public:
@@ -51,6 +57,8 @@ private:
 public:
     int argc;
     sds *argv;
+    std::unique_ptr<LogCabin::Client::Cluster> cluster;
+    std::unique_ptr<LogCabin::Client::Tree> tree;
 
 private:
     int    fd;
@@ -81,7 +89,7 @@ typedef struct _CMD_FUN_ {
 class RedisServerBase
 {
 public:
-    RedisServerBase();
+    RedisServerBase(RedisProxy::OptionParser& options);
     ~RedisServerBase();
 
 public:
@@ -127,6 +135,8 @@ private:
     bool CheckSession(RedisConnectorBase *pConnector);
     void ProcessCmd_auth(RedisConnectorBase *pConnector);
 private:
+    RedisProxy::OptionParser& options;
+
     struct event_base *base;
     std::map<uint32_t, RedisConnectorBase*> connectionmap;
     uint32_t    sessionbase;

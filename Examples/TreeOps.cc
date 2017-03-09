@@ -26,8 +26,6 @@
 #include <zconf.h>
 #include <Client/ClientImpl.h>
 
-#include "../RedisServer/RedisServer.h"
-
 namespace {
 
 using LogCabin::Client::Cluster;
@@ -417,19 +415,6 @@ main(int argc, char** argv)
             }
                 break;
         }
-//        return 0;
-
-//        RedisServer redis(tree);
-//        redis.Init();
-//        std::string pass = "shahe22f";
-//        redis.SetPassword(pass);
-//        int port = 6479;
-//        std::cout << "Listen port " << port << std::endl;
-//        redis.Start("127.0.0.1", port);
-//
-//        while (1) {
-//            usleep(1000);
-//        }
 
     } catch (const LogCabin::Client::Exception& e) {
         std::cerr << "Exiting due to LogCabin::Client::Exception: "

@@ -22,9 +22,9 @@
 #define TIMEOUT_CLOSE      3600
 #define TIMEVAL_TIME       600
 
-RedisConnectorBase::RedisConnectorBase() :
-quit(false)
-{
+RedisConnectorBase::RedisConnectorBase(std::unique_ptr<LogCabin::Client::Cluster> cluster,
+                                       std::unique_ptr<LogCabin::Client::Tree> tree) :
+        quit(false), cluster(std::move(cluster)), tree(std::move(tree)) {
     bev = NULL;
     activetime = time(NULL);
     xredisvr = NULL;
@@ -73,7 +73,7 @@ void RedisConnectorBase::SetSocketOpt()
     }
 }
 
-RedisServerBase::RedisServerBase()
+RedisServerBase::RedisServerBase(RedisProxy::OptionParser& options) : options(options)
 {
     sessionbase = 1000;
     mCmdCount = 0;
@@ -422,7 +422,25 @@ RedisServerBase::conn_writecb(struct bufferevent *bev, void *user_data)
 
 bool RedisServerBase::MallocConnection(evutil_socket_t skt)
 {
-    RedisConnectorBase *pConnector = new RedisConnectorBase;
+
+    std::unique_ptr<LogCabin::Client::Cluster> cluster(new LogCabin::Client::Cluster(options.cluster));
+    std::unique_ptr<LogCabin::Client::Tree> tree(new LogCabin::Client::Tree(cluster->getTree())) ;
+
+    if (options.timeout > 0) {
+        tree->setTimeout(options.timeout);
+    }
+
+    if (!options.dir.empty()) {
+        tree->setWorkingDirectoryEx(options.dir);
+    }
+
+    if (!options.condition.first.empty()) {
+        tree->setConditionEx(options.condition.first,
+                            options.condition.second);
+    }
+
+    RedisConnectorBase *pConnector = new RedisConnectorBase(std::move(cluster),
+                                                            std::move(tree));
     if (NULL == pConnector) {
         return false;
     }

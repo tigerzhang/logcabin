@@ -179,8 +179,7 @@ set(SOURCE_FILES
     ${EVENT_FILES}
     ${CORE_FILES}
     Server/utils.cc Server/utils.h
-    ${REDISSERVER_FILES}
-        ${REDIS_CPP_FILES})
+    ${REDIS_CPP_FILES})
 
 set(HIREDIS_FILES
         "hiredis/async.c"
@@ -204,7 +203,7 @@ find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
 
 set(LIBS ${SUBMODULE_LIBS} ${LZ4_LIB_STATIC} ${PROTOBUF_LIB_STATIC} ${CRYPTOPP_LIB_STATIC} ${HIREDIS_LIB_STATIC}
          pthread rt ${SNAPPY_LIB_STATIC} z ${BZ2_LIB_STATIC} ${JEMALLOC_LIB_STATIC} ${EVENT_LIB_STATIC} ${BOOST_SYSTEM_LIB_STATIC})
-add_executable(LogCabin ${SOURCE_FILES} ${REDISSERVER_FILES} ${HIREDIS_FILES})
+add_executable(LogCabin ${SOURCE_FILES} ${HIREDIS_FILES} "RedisServer/sds.cc")
 target_link_libraries(LogCabin ${LIBS})
 include_directories(${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/include ${CMAKE_CURRENT_BINARY_DIR} . ./include gtest/include redis3m/include rocksdb/include)
 
@@ -220,7 +219,7 @@ add_library(logcabin STATIC
         ${StorageProtoSources}
         ${TreeProtoSources})
 
-add_executable(Benchmark ${CMAKE_SOURCE_DIR}/Examples/Benchmark.cc)
+add_executable(Benchmark ${CMAKE_SOURCE_DIR}/Examples/Benchmark.cc Examples/RedisProxy.h)
 target_link_libraries(Benchmark logcabin ${LIBS})
 add_executable(FailoverTest ${CMAKE_SOURCE_DIR}/Examples/FailoverTest.cc)
 target_link_libraries(FailoverTest logcabin ${LIBS})
@@ -232,7 +231,7 @@ add_executable(ReconfigureTest ${CMAKE_SOURCE_DIR}/Examples/ReconfigureTest.cc)
 target_link_libraries(ReconfigureTest logcabin ${LIBS})
 add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc)
 target_link_libraries(SmokeTest logcabin ${LIBS})
-add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${REDISSERVER_FILES} ${HIREDIS_FILES})
+add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc)
 target_link_libraries(TreeOps logcabin ${LIBS})
 add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc ${HIREDIS_FILES})
 target_link_libraries(ServerControl logcabin ${LIBS})
@@ -269,7 +268,7 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${SERVER_TEST_FILES}
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
-add_executable(Test ${TEST_SOURCE_FILES} ${REDISSERVER_FILES} ${HIREDIS_FILES})
+add_executable(Test ${TEST_SOURCE_FILES} ${HIREDIS_FILES} "RedisServer/sds.cc")
 target_link_libraries(Test logcabin ${LIBS})
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
