@@ -108,14 +108,16 @@ int StateMachineRedis::get(const std::string &key, std::string *value) const {
 
 StateMachineRedis::StateMachineRedis(std::shared_ptr<RaftConsensus> consensus, Core::Config &config,
                                      Globals &globals, void *kvstore)
-        : StateMachineBase(consensus, config, globals, kvstore) {
+        : StateMachineBase(consensus, config, globals, kvstore)
+        , snapshotContext(nullptr) {
 }
 
 
 void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
                                    Storage::SnapshotFile::Writer *writer) {
 //    redis3m::connection *connection = ((redis3m::connection *) kvstore);
-    redisContext *conn = (redisContext *)kvstore;
+    assert(snapshotContext != nullptr);
+    redisContext *conn = (redisContext *)snapshotContext;
 
 //    redis3m::reply reply = connection->run(
 //            redis3m::command("CONFIG") << "SET" << "dir"
@@ -230,18 +232,55 @@ void StateMachineRedis::loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream
 
 //    redis3m::connection *connection = ((redis3m::connection *) kvstore);
 //    connection->run(redis3m::command("DEBUG") << "RELOADRDBFROM" << std::string(buf));
-    redisContext *conn = (redisContext *)kvstore;
+    if (snapshotContext == nullptr) {
+        snapshotContext = getContext();
+    }
+    redisContext *conn = (redisContext *)snapshotContext;
     char cmd[2048];
     snprintf(cmd, 2048, "DEBUG RELOADRDBFROM %s", buf);
     redisCommand(conn, cmd);
 }
 
 void *StateMachineRedis::createSnapshotPoint() {
+    if (snapshotContext != nullptr) {
+        redisFree(snapshotContext);
+        snapshotContext = nullptr;
+    }
+    snapshotContext = getContext();
     return nullptr;
 }
 
-void StateMachineRedis::snapshotDone() {
+redisContext *StateMachineRedis::getContext() const {
+    redisContext *c = NULL;
+    struct timeval timeout = { 1, 500000 }; // 1.5 seconds
 
+    std::string redisAddress =
+            globals.config.read<std::string>("redisAddress", std::string(""));
+    if (redisAddress == "") {
+        std::string redisSock =
+                globals.config.read<std::string>("redisSock", std::string(""));
+        if (redisSock != "") {
+            // open unix socket
+            std::string sock_path = globals.raft->getStorageLayout().serverDir.path + "/redis.sock";
+            NOTICE("redisSock: %s", sock_path.c_str());
+            c = redisConnectUnix(sock_path.c_str());
+        }
+    } else {
+        std::vector<std::string> splitVect;
+        split(splitVect, redisAddress, boost::algorithm::is_any_of(":"));
+        NOTICE("redisAddress: %s, %s", splitVect[0].c_str(), splitVect[1].c_str());
+        c = redisConnectWithTimeout(splitVect[0].c_str(),
+                                    std::stoi(splitVect[1].c_str()),
+                                    timeout);
+    }
+    return c;
+}
+
+void StateMachineRedis::snapshotDone() {
+    if (snapshotContext) {
+        redisFree(snapshotContext);
+        snapshotContext = nullptr;
+    }
 }
 
 }

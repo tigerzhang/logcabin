@@ -5,6 +5,7 @@
 #ifndef LOGCABIN_STATEMACHINEREDIS_H
 #define LOGCABIN_STATEMACHINEREDIS_H
 
+#include <hiredis/hiredis.h>
 #include "StateMachineBase.h"
 
 namespace LogCabin {
@@ -40,7 +41,10 @@ protected:
     virtual void loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream);
 
 private:
+    redisContext *snapshotContext;
     redisReply *getReply(const std::string &key) const;
+
+    redisContext *getContext() const;
 };
 
 }
