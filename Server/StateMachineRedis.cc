@@ -18,6 +18,7 @@
 //#include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
 #include <fcntl.h>
+#include <unistd.h>
 #include <hiredis/hiredis.h>
 
 namespace LogCabin {
@@ -150,13 +151,28 @@ void StateMachineRedis::do_redis_load_snapshot(Core::ProtoBuf::InputStream &stre
 }
 
 void StateMachineRedis::do_ardb_load_snapshot(Core::ProtoBuf::InputStream &stream) {
-
+    ulong size;
+    stream.readRaw(&size, sizeof(ulong));
+    char buf[1024] = {'\0'};
+    stream.readRaw(buf, std::min(size, ulong(1024)));
+    redisContext *conn = (redisContext *)kvstore;
+    char cmd[2048] = {'\0'};
+    VVERBOSE("buf: %s, len: %d", buf, strlen(buf));
+    snprintf(cmd, 2048, "import %s", buf);
+    VVERBOSE("size: %d, execuate command: %s", size, cmd);
+    redisCommand(conn, cmd);
 }
 
 void StateMachineRedis::do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer) {
     redisContext *conn = (redisContext *)kvstore;
     char buf[2048];
-    snprintf(buf, 2048, "CONFIG SET backup-dir %s", globals.raft->getStorageLayout().snapshotDir.path.c_str());
+    char cwd[1024] = { '\0' };
+
+    getcwd(cwd, sizeof(cwd));
+    strcat(cwd, "/"),
+    strcat(cwd, globals.raft->getStorageLayout().snapshotDir.path.c_str());
+    VVERBOSE("current dir: %s", cwd);
+    snprintf(buf, 2048, "CONFIG SET backup-dir %s", cwd);
     VERBOSE("backup dir is: %s", buf);
 
     redisReply *reply = (redisReply *)redisCommand(conn, buf);
@@ -165,7 +181,7 @@ void StateMachineRedis::do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::Snap
     redisCommand(conn, "CONFIG REWRITE");
     reply = (redisReply *)redisCommand(conn, "BGSAVE redis");
     VERBOSE("BGSAVE return: %s", reply->str);
-    assert(strcmp(reply->str, "Background saving started") == 0);
+    assert(strcmp(reply->str, "OK") == 0);
 
     bool done = false;
     while (!done) {
@@ -192,18 +208,22 @@ void StateMachineRedis::do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::Snap
         }
     }
 
-    reply = (redisReply *)redisCommand(conn, "CONFIG GET dir");
+    VERBOSE("BGSAVE is finished");
+    reply = (redisReply *)redisCommand(conn, "CONFIG GET backup-dir");
     assert(reply->type == REDIS_REPLY_ARRAY);
-    assert(strcmp(reply->element[0]->str, "dir") == 0);
-    std::string dir = reply->element[0]->str;
+    assert(strcmp(reply->element[0]->str, "backup-dir") == 0);
+    std::string dir = reply->element[1]->str;
 
-    reply = (redisReply *)redisCommand(conn, "CONFIG GET dbfilename");
-    assert(reply->type == REDIS_REPLY_ARRAY);
-    assert(strcmp(reply->element[0]->str, "dbfilename") == 0);
-    std::string dbfilename = reply->element[0]->str;
+//    reply = (redisReply *)redisCommand(conn, "CONFIG GET dbfilename");
+//    assert(reply->type == REDIS_REPLY_ARRAY);
+//    assert(strcmp(reply->element[0]->str, "dbfilename") == 0);
+    std::string dbfilename = "save-redis-snapshot";
 
     std::string fullname = dir + "/" + dbfilename;
     ulong size = fullname.size();
+
+    VVERBOSE("fullname: %s, size: %d", fullname.c_str(), size);
+
     writer->writeRaw(&size, sizeof(size));
     writer->writeRaw(fullname.c_str(), size);
 }
