@@ -360,7 +360,7 @@ int RedisServerBase::main_loop(const char *ip, int port)
     sin.sin_addr.s_addr = inet_addr(ip);
     sin.sin_port = htons(port);
 
-    event_enable_debug_logging(EVENT_DBG_ALL);
+//    event_enable_debug_logging(EVENT_DBG_ALL);
 
     listener = evconnlistener_new_bind(base, listener_cb, (void *)this,
                                        LEV_OPT_REUSEABLE|LEV_OPT_CLOSE_ON_FREE, -1,
@@ -378,6 +378,25 @@ int RedisServerBase::main_loop(const char *ip, int port)
         return 1;
     }
 
+    // fork childs
+    pid_t Pid;
+    std::cout << "parent process " << getpid() << "\n";
+    for(int i = 1; i <= 4; ++i) {
+        Pid = fork();
+        if(Pid == 0)
+        {
+            std::cout << "fork " << getpid() << " started\n";
+            break;
+        }
+        else if(Pid == -1)
+        {
+            fprintf(stderr, "ERROR: forking\n");
+            break;
+        }
+
+    }
+
+    event_reinit(base);
     event_base_dispatch(base);
 
     evconnlistener_free(listener);
