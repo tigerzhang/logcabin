@@ -246,6 +246,8 @@ Globals::init()
     }
 #endif
 
+    stateMachine->startThreads();
+
 #endif
 
 //	if (!stateMachineRocksdb) {

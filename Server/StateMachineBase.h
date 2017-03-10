@@ -555,6 +555,7 @@ public:
     virtual void* createSnapshotPoint() = 0;
     virtual void snapshotDone() = 0;
 
+    void startThreads();
 };
 
 } // namespace LogCabin::Server

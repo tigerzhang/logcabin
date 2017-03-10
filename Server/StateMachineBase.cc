@@ -102,12 +102,18 @@ StateMachineBase::StateMachineBase(std::shared_ptr<RaftConsensus> consensus,
 
     kvstore = kvstore_;
 //    initKVStore();
+}
 
+//
+// It's not safe to start the threads in constructor,
+// because the there are pure virtual methods called in the threads, guess??
+//
+void StateMachineBase::startThreads() {
     if (!stateMachineSuppressThreads) {
-        applyThread = std::thread(&StateMachineBase::applyThreadMain, this);
-        snapshotThread = std::thread(&StateMachineBase::snapshotThreadMain, this);
+        applyThread = std::thread(&this->applyThreadMain, this);
+        snapshotThread = std::thread(&this->snapshotThreadMain, this);
         snapshotWatchdogThread = std::thread(
-                &StateMachineBase::snapshotWatchdogThreadMain, this);
+                &this->snapshotWatchdogThreadMain, this);
     }
 }
 
