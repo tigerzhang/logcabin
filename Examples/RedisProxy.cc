@@ -133,6 +133,8 @@ private:
         LogCabin::Client::Result result = pConnector->tree->kvread(cmd, value);
         if (result.status == LogCabin::Client::Status::OK) {
             SendRawReply(pConnector, value);
+        } else if (result.status == LogCabin::Client::Status::TIMEOUT) {
+            SendErrReply(pConnector, "ERR", result.error.c_str());
         } else {
             SendRawReply(pConnector, result.error);
         }
@@ -154,9 +156,13 @@ private:
         encodeRedisRequest(pConnector->argc, pConnector->argv, cmd);
 
         std::string value;
-        LogCabin::Client::Result result = pConnector->tree->kvwriteEx(cmd, value);
+        LogCabin::Client::Result result = pConnector->tree->kvwrite(cmd, value);
 //        std::cout << "ProcessWriteCommand result.error: " << result.error << std::endl;
-        SendRawReply(pConnector, result.error);
+        if (result.status == LogCabin::Client::Status::TIMEOUT) {
+            SendErrReply(pConnector, "ERR", result.error.c_str());
+        } else {
+            SendRawReply(pConnector, result.error);
+        }
     }
 
 private:

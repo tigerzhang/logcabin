@@ -906,9 +906,15 @@ ClientImpl::keyValueWrite(const std::string& key,
     *request.mutable_value() = value;
     Protocol::Client::ReadWriteKeyValue::Response response;
     keyValueCall(*leaderRPC, request, response, timeout);
-    Result result;
-    result.error = response.error();
-    return result;
+    if (response.status() != Protocol::Client::Status::OK) {
+        Result result = treeError(response);
+        result.error = response.error();
+        return result;
+    } else {
+        Result result;
+        result.error = response.error();
+        return result;
+    }
 }
 
 Result
