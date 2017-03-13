@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.5)
 project(logcabin)
 
 # add_definitions(-DROCKSDB_STATEMACHINE)
-add_definitions(-DREDIS_STATEMACHINE)
+#add_definitions(-DREDIS_STATEMACHINE)
+add_definitions(-DARDB_STATEMACHINE)
 enable_testing()
 
 # install dependecies
@@ -91,7 +92,24 @@ find_package(Protobuf REQUIRED)
 set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/Protocol)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3 -fpermissive")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3 -fpermissive")
+add_compile_options(-std=c++11)
+add_compile_options(-ggdb3)
+add_compile_options(-fpermissive)
+add_compile_options(-Wall)
+add_compile_options(-Wextra)
+add_compile_options(-Wcast-align)
+add_compile_options(-Wcast-qual)
+add_compile_options(-Wconversion)
+add_compile_options(-Weffc++)
+add_compile_options(-Wformat=2)
+add_compile_options(-Wmissing-format-attribute)
+add_compile_options(-Wno-non-template-friend)
+add_compile_options(-Wno-unused-parameter)
+add_compile_options(-Woverloaded-virtual)
+add_compile_options(-Wwrite-strings)
+add_compile_options(-DSWIG)
+
 set(SERVER_FILES "Server/ClientService.cc"
     "Server/ControlService.cc"
     "Server/Globals.cc"
@@ -103,6 +121,7 @@ set(SERVER_FILES "Server/ClientService.cc"
     "Server/StateMachineRocksdb.cc"
     "Server/StateMachineBase.cc"
     "Server/StateMachineRedis.cc"
+    "Server/StateMachineArdb.cc"
 )
 file(GLOB SERVER_PROTO_FILES "Server/*.proto")
 set(STORAGE_FILES "Storage/FilesystemUtil.cc"
@@ -250,7 +269,8 @@ target_link_libraries(Tool logcabin ${LIBS} pthread)
 add_executable(RedisProxy ${CMAKE_SOURCE_DIR}/Examples/RedisProxy.cc ${REDISSERVER_FILES} ${HIREDIS_FILES})
 target_link_libraries(RedisProxy logcabin ${LIBS})
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
+add_compile_options(-fno-access-control)
 
 file(GLOB CLIENT_TEST_FILES "Client/*Test.cc" "Client/*Mock.cc")
 file(GLOB CORE_TEST_FILES "Core/*Test.cc" "Core/*Mock.cc")

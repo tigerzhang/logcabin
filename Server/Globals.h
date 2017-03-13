@@ -24,6 +24,7 @@
 #include "Event/Signal.h"
 #include "Server/ServerStats.h"
 #include "StateMachineRedis.h"
+#include "StateMachineArdb.h"
 
 #ifndef LOGCABIN_SERVER_GLOBALS_H
 #define LOGCABIN_SERVER_GLOBALS_H
@@ -213,6 +214,10 @@ class Globals {
 
 #ifdef REDIS_STATEMACHINE
     std::shared_ptr<Server::StateMachineRedis> stateMachine;
+#endif
+
+#ifdef ARDB_STATEMACHINE
+    std::shared_ptr<Server::StateMachineArdb> stateMachine;
 #endif
 
 #endif

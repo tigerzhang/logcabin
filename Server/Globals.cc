@@ -28,6 +28,7 @@
 #include "Server/StateMachine.h"
 #include "Server/StateMachineRocksdb.h"
 #include "StateMachineRedis.h"
+#include "StateMachineArdb.h"
 
 #include <redis3m/redis3m.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -190,7 +191,7 @@ Globals::init()
     }
 #else
 
-#ifdef REDIS_STATEMACHINE
+#if defined(REDIS_STATEMACHINE) || defined(ARDB_STATEMACHINE)
     if (!stateMachine) {
         NOTICE("Connecting redis...");
 
@@ -241,8 +242,13 @@ Globals::init()
 
         void *conn = c;
 
+#ifdef REDIS_STATEMACHINE
         stateMachine.reset(new StateMachineRedis(raft, config, *this,
                                                  conn));
+#elif defined(ARDB_STATEMACHINE)
+        stateMachine.reset(new StateMachineArdb(raft, config, *this,
+                                                 conn));
+#endif
     }
 #endif
 
