@@ -149,15 +149,24 @@ StateMachineBase::query(const Query::Request& request,
     if (request.has_key_value()) {
         const PC::ReadOnlyKeyValue::Request& keyValue = request.key_value();
         std::string contents;
-        int result = get(keyValue.key(), &contents);
-        if (result == 0) {
-            response.mutable_key_value()->set_value(contents);
-            response.mutable_key_value()->set_status(Protocol::Client::Status::OK);
-            return true;
-        } else {
-            response.mutable_key_value()->set_error(contents);
-            response.mutable_key_value()->set_status(Protocol::Client::Status::LOOKUP_ERROR);
-            return true;
+
+        if (keyValue.has_key()) {
+            if (keyValue.key().empty()) {
+                response.mutable_key_value()->set_value("Key is empty");
+                response.mutable_key_value()->set_status(Protocol::Client::Status::INVALID_ARGUMENT);
+                return true;
+            }
+
+            int result = get(keyValue.key(), &contents);
+            if (result == 0) {
+                response.mutable_key_value()->set_value(contents);
+                response.mutable_key_value()->set_status(Protocol::Client::Status::OK);
+                return true;
+            } else {
+                response.mutable_key_value()->set_error(contents);
+                response.mutable_key_value()->set_status(Protocol::Client::Status::LOOKUP_ERROR);
+                return true;
+            }
         }
     } else if (request.has_tree()) {
         const PC::ReadOnlyTree::Request &tree = request.tree();
