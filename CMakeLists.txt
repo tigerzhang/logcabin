@@ -7,7 +7,7 @@ add_definitions(-DARDB_STATEMACHINE)
 enable_testing()
 
 # install dependecies
-set(DEPENDENCIES lz4 jemalloc crypto++ protobuf snappy bz2 pthread-stubs0 boost-all msgpack)
+set(DEPENDENCIES lz4 jemalloc crypto++ snappy bz2 pthread-stubs0 boost-all msgpack)
 foreach(Dep ${DEPENDENCIES})
     string(CONCAT Dep2 lib ${Dep} -dev)
     message("Installing Dep:  " ${Dep2})
@@ -16,14 +16,6 @@ foreach(Dep ${DEPENDENCIES})
         execute_process(COMMAND "sudo" apt-get -qq install ${Dep2})
     endif()
 endforeach(Dep)
-
-# install protobuf compiler
-set(PROTOBUF_COMPILER protobuf-compiler)
-message("Installing protobuf-compiler ...")
-execute_process(COMMAND "dpkg" -l ${PROTOBUF_COMPILER} RESULT_VARIABLE res_var OUTPUT_QUIET)
-if(NOT "${res_var}" STREQUAL "0")
-    execute_process(COMMAND "sudo" apt-get -qq install ${PROTOBUF_COMPILER})
-endif()
 
 # build submodule
 message(STATUS "building redis...")
@@ -46,6 +38,45 @@ add_subdirectory(gtest)
 
 message(STATUS "building redis3m...")
 add_subdirectory(redis3m)
+
+# Download protobuf
+set(LIBPROTOBUF_URL "https://github.com/google/protobuf/releases/download/v2.6.1/protobuf-2.6.1.tar.gz")
+set(LIBPROTOBUF_DOWNLOAD_PATH "${CMAKE_SOURCE_DIR}/protobuf-2.6.1.tar.gz")
+set(LIBPROTOBUF_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/protobuf-2.6.1")
+if (NOT EXISTS "${LIBPROTOBUF_EXTRACT_PATH}")
+    message("Download ${LIBPROTOBUF_DOWNLOAD_PATH} ...")
+    execute_process(
+        COMMAND wget ${LIBPROTOBUF_URL} -O ${LIBPROTOBUF_DOWNLOAD_PATH}
+        TIMEOUT 100000
+    )
+    message("Extract ${LIBPROTOBUF_DOWNLOAD_PATH} ...")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E tar zxf ${LIBPROTOBUF_DOWNLOAD_PATH}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE res_var
+    )
+    if (${res_var} STREQUAL "0")
+        execute_process(
+            COMMAND "sh" -c ./configure --prefix=/usr
+            WORKING_DIRECTORY ${LIBPROTOBUF_EXTRACT_PATH}
+            RESULT_VARIABLE res_var
+        )
+        execute_process(
+            COMMAND "sh" -c make -j4
+            WORKING_DIRECTORY ${LIBPROTOBUF_EXTRACT_PATH}
+            RESULT_VARIABLE res_var
+        )
+        execute_process(
+            COMMAND "sh" -c sudo make install
+            WORKING_DIRECTORY ${LIBPROTOBUF_EXTRACT_PATH}
+            RESULT_VARIABLE res_var
+        )
+    endif()
+endif()
+
+#set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/protobuf-2.6.1/src ${CMAKE_PREFIX_PATH})
+#set(Protobuf_IMPORT_DIRS /usr/local)
+find_package(Protobuf REQUIRED)
 
 # Download libevent-2.1.8
 set(LIBEVENT_URL "https://github.com/libevent/libevent/releases/download/release-2.1.8-stable/libevent-2.1.8-stable.tar.gz")
@@ -87,13 +118,13 @@ endif()
 SET(SUBMODULE_LIBS gtest redis3m
                    ${CMAKE_SOURCE_DIR}/rocksdb/librocksdb.a)
 
-find_package(Protobuf REQUIRED)
 #find_package(JeMalloc REQUIRED)
 set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
         ${PROJECT_SOURCE_DIR}/Protocol)
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3 -fpermissive")
 add_compile_options(-std=c++11)
+add_compile_options(-O0)
 add_compile_options(-ggdb3)
 add_compile_options(-fpermissive)
 add_compile_options(-Wall)
@@ -222,7 +253,7 @@ set(HIREDIS_FILES
 set(HIREDIS_LIB_STATIC ${CMAKE_SOURCE_DIR}/hiredis/libhiredis.a)
 
 find_library(LZ4_LIB_STATIC NAMES liblz4.a)
-find_library(PROTOBUF_LIB_STATIC NAMES libprotobuf.a)
+find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib NO_DEFAULT_PATH)
 find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
 find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
 find_library(BZ2_LIB_STATIC NAMES libbz2.a)
