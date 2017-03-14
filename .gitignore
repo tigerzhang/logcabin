@@ -17,3 +17,5 @@ data
 RedisServer/*.o
 libevent-2.1.8-stable
 libevent-2.1.8-stable.tar.gz
+protobuf-2.6.1
+protobuf-2.6.1.tar.gz
