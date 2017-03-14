@@ -138,6 +138,10 @@ private:
         } else {
             SendRawReply(pConnector, result.error);
         }
+
+        if (result.status != LogCabin::Client::Status::OK) {
+            ERROR("kvread error: %s", result.error.c_str());
+        }
     }
 
     void ProcessWriteCommand(RedisConnect *pConnector)
@@ -162,6 +166,10 @@ private:
             SendErrReply(pConnector, "ERR", result.error.c_str());
         } else {
             SendRawReply(pConnector, result.error);
+        }
+
+        if (result.status != LogCabin::Client::Status::OK) {
+            ERROR("kvread error: %s", result.error.c_str());
         }
     }
 
