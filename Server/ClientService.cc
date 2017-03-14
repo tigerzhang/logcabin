@@ -35,6 +35,8 @@ typedef RaftConsensus::ClientResult Result;
 
 ClientService::ClientService(Globals& globals)
     : globals(globals)
+        , stateMachineCommandMutex()
+        , stateMachineQueryMutex()
 {
 }
 
@@ -156,6 +158,14 @@ ClientService::setConfiguration(RPC::ServerRPC rpc)
 void
 ClientService::stateMachineCommand(RPC::ServerRPC rpc)
 {
+//    std::lock_guard<std::mutex> lockGuard(stateMachineCommandMutex);
+    std::unique_lock<std::mutex> lockGuard(stateMachineCommandMutex, std::defer_lock);
+    if (lockGuard.owns_lock()) {
+        assert(0);
+    } else {
+        lockGuard.lock();
+    }
+
     PRELUDE(StateMachineCommand);
     Core::Buffer cmdBuffer;
     rpc.getRequest(cmdBuffer);
@@ -180,6 +190,8 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
         response.mutable_key_value()->set_error(globals.stateMachine->lastApplyResult);
     } else if (request.has_tree()) {
         response.mutable_tree()->set_error(globals.stateMachine->lastApplyResult);
+    } else {
+        response.Clear();
     }
     VVERBOSE("lastApplyResult: %s", globals.stateMachine->lastApplyResult.c_str());
 
@@ -189,6 +201,14 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
 void
 ClientService::stateMachineQuery(RPC::ServerRPC rpc)
 {
+//    std::lock_guard<std::mutex> lockGuard(stateMachineQueryMutex);
+    std::unique_lock<std::mutex> lockGuard(stateMachineQueryMutex, std::defer_lock);
+    if (lockGuard.owns_lock()) {
+        assert(0);
+    } else {
+        lockGuard.lock();
+    }
+
     PRELUDE(StateMachineQuery);
     std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
     if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {

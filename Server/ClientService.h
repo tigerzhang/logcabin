@@ -69,6 +69,10 @@ class ClientService : public RPC::Service {
     ClientService& operator=(const ClientService&) = delete;
 
     void getLogEntries(RPC::ServerRPC rpc);
+
+    std::mutex stateMachineCommandMutex;
+    std::mutex stateMachineQueryMutex;
+
 }; // class ClientService
 
 } // namespace LogCabin::Server
