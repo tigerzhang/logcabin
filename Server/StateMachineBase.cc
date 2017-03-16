@@ -218,7 +218,8 @@ StateMachineBase::updateServerStats(Protocol::ServerStats& serverStats) const
     smStats.set_max_supported_version(MAX_SUPPORTED_VERSION);
     smStats.set_running_version(getVersion(lastApplied));
     smStats.set_may_snapshot_at(time.unixNanos(maySnapshotAt));
-    tree.updateServerStats(*smStats.mutable_tree());
+//    tree.updateServerStats(*smStats.mutable_tree());
+    // TODO: state machine stats
 }
 
 void
