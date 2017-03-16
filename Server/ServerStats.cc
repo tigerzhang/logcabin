@@ -145,7 +145,7 @@ ServerStats::dumpToDebugLog(std::unique_lock<Core::Mutex>& lockGuard) const
 {
     isStatsDumpRequested = false;
     Protocol::ServerStats currentStats = getCurrent(lockGuard);
-    NOTICE("ServerStats:\n%s",
+    VERBOSE("ServerStats:\n%s",
            Core::ProtoBuf::dumpString(currentStats).c_str());
     SteadyClock::time_point now = SteadyClock::now();
     if (lastDumped < now)
