@@ -3,19 +3,15 @@
 //
 
 #include <exception>
-#include <redis3m/redis3m.hpp>
-#include "../RedisServer/sds.h"
+#include <hiredis/sds.h>
 #include "Server/RaftConsensus.h"
 #include "StateMachineBase.h"
 #include "StateMachineArdb.h"
-#include "../redis_cpp/include/redis_protocol/resp_protocol.hpp"
 
 #include "Core/Debug.h"
 #include "utils.h"
 #include "Globals.h"
 
-//#include <boost/algorithm/string/trim.hpp>
-//#include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
 #include <fcntl.h>
 #include <unistd.h>
@@ -25,6 +21,8 @@ namespace LogCabin {
 namespace Server {
 
 extern int encodeRedisReply(redisReply *reply, std::string &str);
+
+// TODO: wrap redis request in a C++ class, then redisReply call be freed automatically
 
 redisReply *StateMachineArdb::getReply(const std::string &key) const {
     redisReply *reply;
@@ -50,7 +48,9 @@ int StateMachineArdb::put(const std::string &key, const std::string &value) {
     if (reply == nullptr) {
         return -1;
     }
-    return encodeRedisReply(reply, lastApplyResult);
+    int ret = encodeRedisReply(reply, lastApplyResult);
+    freeReplyObject(reply);
+    return ret;
 }
 
 int StateMachineArdb::get(const std::string &key, std::string *value) const {
@@ -60,6 +60,7 @@ int StateMachineArdb::get(const std::string &key, std::string *value) const {
         return -1;
     }
     int ret = encodeRedisReply(reply, *value);
+    freeReplyObject(reply);
     return ret;
 }
 
@@ -135,30 +136,53 @@ void StateMachineArdb::do_ardb_load_snapshot(Core::ProtoBuf::InputStream &stream
     VVERBOSE("buf: %s, len: %lu", buf, strlen(buf));
     snprintf(cmd, 2048, "import %s", buf);
     VVERBOSE("size: %lu, execuate command: %s", size, cmd);
-    redisCommand(conn, cmd);
+    redisReply *reply = (redisReply *)redisCommand(conn, cmd);
+    freeReplyObject(reply);
 }
 
 void StateMachineArdb::do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::SnapshotFile::Writer *writer) {
     assert(snapshotContext != nullptr);
     redisContext *conn = (redisContext *)snapshotContext;
-    char buf[2048];
-    char cwd[1024] = { '\0' };
+    redisReply *reply;
+#define BUFSIZE 2048
+    char buf[BUFSIZE] = { '\0' };
+#define CWDSIZE 1024
+    char cwd[CWDSIZE] = { '\0' };
 
-    getcwd(cwd, sizeof(cwd));
-    strcat(cwd, "/"),
-    strcat(cwd, globals.raft->getStorageLayout().snapshotDir.path.c_str());
-    VVERBOSE("current dir: %s", cwd);
-    snprintf(buf, 2048, "CONFIG SET backup-dir %s", cwd);
+    // save current committed index for debugging
+    snprintf(buf, BUFSIZE - 1, "set __commit_index %lu", lastIncludedIndex);
+    reply = (redisReply *)redisCommand(conn, buf);
+    freeReplyObject(reply);
+
+    const std::string& snapshotDir(globals.raft->getStorageLayout().snapshotDir.path);
+
+    if (snapshotDir.compare(0, 1, "/") != 0) { // relative path
+        getcwd(cwd, CWDSIZE);
+        strcat(cwd, "/"),
+                strcat(cwd, globals.raft->getStorageLayout().snapshotDir.path.c_str());
+        NOTICE("backup-dir: %s", cwd);
+
+        snprintf(buf, BUFSIZE - 1, "CONFIG SET backup-dir %s", cwd);
+    } else { // absolute path
+        snprintf(buf, BUFSIZE - 1, "CONFIG SET backup-dir %s", snapshotDir.c_str());
+    }
+
     VERBOSE("backup dir is: %s", buf);
-
-    redisReply *reply = (redisReply *)redisCommand(conn, buf);
+    reply = (redisReply *)redisCommand(conn, buf);
     assert(reply->type == REDIS_REPLY_STATUS);
+    freeReplyObject(reply);
 
-    redisCommand(conn, "CONFIG REWRITE");
-    reply = (redisReply *)redisCommand(conn, "BGSAVE redis");
+    reply = (redisReply *)redisCommand(conn, "CONFIG REWRITE");
+    freeReplyObject(reply);
+
+    // issue bgsave command
+    snprintf(buf, BUFSIZE - 1, "BGSAVE REDIS %lu", lastIncludedIndex);
+    reply = (redisReply *)redisCommand(conn, buf);
     VERBOSE("BGSAVE return: %s", reply->str);
     assert(strcmp(reply->str, "OK") == 0);
+    freeReplyObject(reply);
 
+    // wait bgsave done
     bool done = false;
     while (!done) {
         usleep(1000 * 1000);
@@ -169,37 +193,53 @@ void StateMachineArdb::do_ardb_bgsave(uint64_t lastIncludedIndex, Storage::Snaps
             auto found = strstr(reply->str, "rdb_bgsave_in_progress:0");
             if (found != nullptr) {
                 done = true;
+                freeReplyObject(reply);
                 break;
             }
         }
         if (reply->type == REDIS_REPLY_ARRAY) {
-            for (int i = 0; i < reply->elements; i++) {
+            for (auto i = 0; i < reply->elements; i++) {
                 VVERBOSE("%s", reply->element[i]->str);
                 if (strcmp(reply->element[i]->str,
                            "rdb_bgsave_in_progress:0") == 0) {
                     done = true;
+                    freeReplyObject(reply);
                     break;
                 }
             }
         }
+        freeReplyObject(reply);
     }
 
     VERBOSE("BGSAVE is finished");
+
     reply = (redisReply *)redisCommand(conn, "CONFIG GET backup-dir");
     assert(reply->type == REDIS_REPLY_ARRAY);
     assert(strcmp(reply->element[0]->str, "backup-dir") == 0);
     std::string dir = reply->element[1]->str;
+    freeReplyObject(reply);
 
-//    reply = (redisReply *)redisCommand(conn, "CONFIG GET dbfilename");
-//    assert(reply->type == REDIS_REPLY_ARRAY);
-//    assert(strcmp(reply->element[0]->str, "dbfilename") == 0);
-    std::string dbfilename = "save-redis-snapshot";
+    // get the filename of backup
+//    reply = (redisReply *)redisCommand(conn, "INFO replication");
+//    if (reply->type == REDIS_REPLY_STRING) {
+//        // search the last snapshot:
+//        // snapshot<n>:type=[redis|backup],create_time=<timestamp>,name=<filename>
+//    }
+//    freeReplyObject(reply);
+
+    // save the snapshot filename to raft snapshot
+    snprintf(buf, BUFSIZE - 1, "save-redis-snapshot.%lu", lastIncludedIndex);
+    std::string dbfilename(buf);
 
     std::string fullname = dir + "/" + dbfilename;
     ulong size = fullname.size();
 
     VVERBOSE("fullname: %s, size: %lu", fullname.c_str(), size);
 
+    // suppress the snapshot watcher
+    //
+    // FIXME: the snapshot watcher should check the real snapshot file
+    //
     writer->writeRaw(&size, sizeof(size));
     writer->writeRaw(fullname.c_str(), size);
 }

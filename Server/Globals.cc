@@ -238,7 +238,8 @@ Globals::init()
 
         // make sure the state machine is empty
         NOTICE("Clean state machine (Redis)");
-        redisCommand(c, "FLUSHALL");
+        redisReply * reply = (redisReply *)redisCommand(c, "FLUSHALL");
+        freeReplyObject(reply);
 
         void *conn = c;
 

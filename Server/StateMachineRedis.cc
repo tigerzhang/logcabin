@@ -96,13 +96,16 @@ redisReply *StateMachineRedis::getReply(const std::string &key) const {
 int StateMachineRedis::put(const std::string &key, const std::string &value) {
     redisReply *reply = getReply(key);
     lastApplyResult.clear();
-    return encodeRedisReply(reply, lastApplyResult);
+    int ret = encodeRedisReply(reply, lastApplyResult);
+    freeReplyObject(reply);
+    return ret;
 }
 
 int StateMachineRedis::get(const std::string &key, std::string *value) const {
     redisReply *reply = getReply(key);
     value->clear();
     int ret = encodeRedisReply(reply, *value);
+    freeReplyObject(reply);
     return ret;
 }
 
@@ -126,15 +129,18 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
     snprintf(buf, 2048, "CONFIG SET dir %s", globals.raft->getStorageLayout().snapshotDir.path.c_str());
     redisReply *reply = (redisReply *)redisCommand(conn, buf);
     assert(reply->type == REDIS_REPLY_STATUS);
+    freeReplyObject(reply);
 
 //    connection->run(redis3m::command("CONFIG") << "REWRITE");
-    redisCommand(conn, "CONFIG REWRITE");
+    reply = (redisReply *)redisCommand(conn, "CONFIG REWRITE");
+    freeReplyObject(reply);
 
 //    reply = connection->run(redis3m::command("BGSAVE"));
     reply = (redisReply *)redisCommand(conn, "BGSAVE");
 //    if (reply.type() == redis3m::reply::type_t::STRING) {
     VERBOSE("BGSAVE return: %s", reply->str);
     assert(strcmp(reply->str, "Background saving started") == 0);
+    freeReplyObject(reply);
 
     bool done = false;
     while (!done) {
@@ -154,6 +160,7 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
             auto found = strstr(reply->str, "rdb_bgsave_in_progress:0");
             if (found != nullptr) {
                 done = true;
+                freeReplyObject(reply);
                 break;
             }
         }
@@ -172,10 +179,12 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
                 if (strcmp(reply->element[i]->str,
                            "rdb_bgsave_in_progress:0") == 0) {
                     done = true;
+                    freeReplyObject(reply);
                     break;
                 }
             }
         }
+        freeReplyObject(reply);
     }
 
 //    reply = connection->run(redis3m::command("CONFIG") << "GET" << "dir");
@@ -186,6 +195,7 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
     assert(reply->type == REDIS_REPLY_ARRAY);
     assert(strcmp(reply->element[0]->str, "dir") == 0);
     std::string dir = reply->element[0]->str;
+    freeReplyObject(reply);
 
 //    reply = connection->run(redis3m::command("CONFIG") << "GET" << "dbfilename");
 //    assert(reply.type() == redis3m::reply::type_t::ARRAY);
@@ -195,6 +205,7 @@ void StateMachineRedis::takeSnapshotWriteData(uint64_t lastIncludedIndex,
     assert(reply->type == REDIS_REPLY_ARRAY);
     assert(strcmp(reply->element[0]->str, "dbfilename") == 0);
     std::string dbfilename = reply->element[0]->str;
+    freeReplyObject(reply);
 
     std::string fullname = dir + "/" + dbfilename;
     ulong size = fullname.size();
@@ -238,7 +249,8 @@ void StateMachineRedis::loadSnapshotLoadData(Core::ProtoBuf::InputStream &stream
     redisContext *conn = (redisContext *)snapshotContext;
     char cmd[2048];
     snprintf(cmd, 2048, "DEBUG RELOADRDBFROM %s", buf);
-    redisCommand(conn, cmd);
+    redisReply *reply = (redisReply *)redisCommand(conn, cmd);
+    freeReplyObject(reply);
 }
 
 void *StateMachineRedis::createSnapshotPoint() {
