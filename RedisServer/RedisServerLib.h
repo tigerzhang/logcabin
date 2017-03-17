@@ -93,7 +93,7 @@ public:
     ~RedisServerBase();
 
 public:
-    bool Start(const char* ip, int port);
+    bool Start(const char *ip, int port, int fork_num);
     bool SetCmdTable(const char* cmd, CmdCallback fun);
     bool SetPassword(std::string &password);
     
@@ -107,7 +107,7 @@ public:
     int SendRawReply(RedisConnectorBase *pConnector, std::string& rawString);
 
 private:
-    int main_loop(const char *ip, int port);
+    int main_loop(const char *ip, int port, bool fork_child = true, int fork_num = 4);
     bool MallocConnection(evutil_socket_t skt);
     RedisConnectorBase* FindConnection(uint32_t sid);
     bool FreeConnection(uint32_t sid);

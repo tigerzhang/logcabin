@@ -231,7 +231,7 @@ main(int argc, char** argv)
 //        redis.SetPassword(pass);
         int port = 6479;
         std::cout << "Listen port " << port << std::endl;
-        redis.Start("127.0.0.1", port);
+        redis.Start("127.0.0.1", port, (int)options.forkNum);
 
         exit(0);
 

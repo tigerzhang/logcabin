@@ -326,9 +326,9 @@ void RedisServerBase::ErrorCallback(struct bufferevent *bev, short event, void *
     pRedisvr->FreeConnection(pConnector->sid);
 }
 
-bool RedisServerBase::Start(const char* ip, int port)
+bool RedisServerBase::Start(const char *ip, int port, int fork_num)
 {
-    main_loop(ip, port);
+    main_loop(ip, port, fork_num > 0, fork_num);
     return false;
 }
 
@@ -343,7 +343,9 @@ signal_cb(evutil_socket_t sig, short events, void *user_data)
     event_base_loopexit(base, &delay);
 }
 
-int RedisServerBase::main_loop(const char *ip, int port)
+int RedisServerBase::main_loop(const char *ip, int port,
+                               bool fork_child = true,
+                               int fork_num = 4)
 {
     struct event *signal_event;
 
@@ -379,24 +381,27 @@ int RedisServerBase::main_loop(const char *ip, int port)
     }
 
     // fork childs
-    pid_t Pid;
-    std::cout << "parent process " << getpid() << "\n";
-    for(int i = 1; i <= 4; ++i) {
-        Pid = fork();
-        if(Pid == 0)
-        {
-            std::cout << "fork " << getpid() << " started\n";
-            break;
-        }
-        else if(Pid == -1)
-        {
-            fprintf(stderr, "ERROR: forking\n");
-            break;
-        }
+    if (fork_child)
+    {
+        pid_t Pid;
+        std::cout << "parent process " << getpid() << "\n";
+        for(int i = 1; i <= fork_num; ++i) {
+            Pid = fork();
+            if(Pid == 0)
+            {
+                std::cout << "fork " << getpid() << " started\n";
+                break;
+            }
+            else if(Pid == -1)
+            {
+                fprintf(stderr, "ERROR: forking\n");
+                break;
+            }
 
+        }
+        event_reinit(base);
     }
 
-    event_reinit(base);
     event_base_dispatch(base);
 
     evconnlistener_free(listener);

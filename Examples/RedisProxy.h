@@ -49,9 +49,10 @@ public:
                     {"timeout",   required_argument, NULL, 't'},
                     {"verbose",   no_argument,       NULL, 'v'},
                     {"verbosity", required_argument, NULL, 256},
+                    {"fork",      required_argument, NULL, 'f'},
                     {0, 0, 0,                              0}
             };
-            int c = getopt_long(argc, argv, "c:d:p:t:hqv", longOptions, NULL);
+            int c = getopt_long(argc, argv, "c:d:p:t:hqvf:", longOptions, NULL);
 
             // Detect the end of the options.
             if (c == -1)
@@ -84,6 +85,9 @@ public:
                     break;
                 case 'v':
                     logPolicy = "VERBOSE";
+                    break;
+                case 'f':
+                    forkNum = parseNonNegativeDuration(optarg);
                     break;
                 case 256:
                     logPolicy = optarg;
@@ -215,6 +219,7 @@ public:
     std::string logPolicy;
     std::string path;
     uint64_t timeout;
+    uint64_t forkNum;
 };
 
 }
