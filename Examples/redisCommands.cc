@@ -11,6 +11,7 @@ struct redisCommands redisCommandTable[] = {
     {"psetex","wm"},
     {"append","wm"},
     {"strlen","rF"},
+    // keys
     {"del","w"},
     {"exists","rF"},
     {"setbit","wm"},
@@ -21,6 +22,7 @@ struct redisCommands redisCommandTable[] = {
     {"incr","wmF"},
     {"decr","wmF"},
     {"mget","r"},
+    // Lists
     {"rpush","wmF"},
     {"lpush","wmF"},
     {"rpushx","wmF"},
@@ -38,6 +40,7 @@ struct redisCommands redisCommandTable[] = {
     {"ltrim","w"},
     {"lrem","w"},
     {"rpoplpush","wm"},
+    // Sets
     {"sadd","wmF"},
     {"srem","wF"},
     {"smove","wF"},
@@ -53,6 +56,7 @@ struct redisCommands redisCommandTable[] = {
     {"sdiffstore","wm"},
     {"smembers","rS"},
     {"sscan","rR"},
+    // Sorted Sets
     {"zadd","wmF"},
     {"zincrby","wmF"},
     {"zrem","wF"},
@@ -74,6 +78,7 @@ struct redisCommands redisCommandTable[] = {
     {"zrank","rF"},
     {"zrevrank","rF"},
     {"zscan","rR"},
+    // Hashes
     {"hset","wmF"},
     {"hsetnx","wmF"},
     {"hget","rF"},
@@ -88,6 +93,7 @@ struct redisCommands redisCommandTable[] = {
     {"hgetall","r"},
     {"hexists","rF"},
     {"hscan","rR"},
+
     {"incrby","wmF"},
     {"decrby","wmF"},
     {"incrbyfloat","wmF"},
@@ -95,7 +101,7 @@ struct redisCommands redisCommandTable[] = {
     {"mset","wm"},
     {"msetnx","wm"},
     {"randomkey","rR"},
-    {"select","rlF"},
+//    {"select","rlF"},
     {"move","wF"},
     {"rename","w"},
     {"renamenx","wF"},
@@ -108,7 +114,7 @@ struct redisCommands redisCommandTable[] = {
     {"dbsize","rF"},
 //    {"auth","rsltF"},
     {"ping","rtF"},
-//    {"echo","rF"},
+    {"echo","rF"},
 //    {"save","ars"},
 //    {"bgsave","ar"},
 //    {"bgrewriteaof","ar"},
@@ -141,7 +147,7 @@ struct redisCommands redisCommandTable[] = {
 //    {"pubsub","pltrR"},
 //    {"watch","rsF"},
 //    {"unwatch","rsF"},
-    {"restore","wm"},
+//    {"restore","wm"},
 //    {"migrate","w"},
 //    {"dump","r"},
 //    {"object","r"},
@@ -156,9 +162,10 @@ struct redisCommands redisCommandTable[] = {
     {"bitpos","r"},
 //    {"command","rlt"},
 //    {"pfselftest","r"},
-//    {"pfadd","wmF"},
-//    {"pfcount","r"},
-//    {"pfmerge","wm"},
+    // HyperLogLog
+    {"pfadd","wmF"},
+    {"pfcount","r"},
+    {"pfmerge","wm"},
 //    {"pfdebug","w"},
 //    {"latency","arslt"},
     {0, 0}
