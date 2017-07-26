@@ -30,6 +30,8 @@ redisReply *StateMachineArdb::getReply(const std::string &key) const {
 
     // TODO: make sure the request(key) is a valid redis request
 
+    // TODO: filter the commands
+
     VVERBOSE("set key: %s", key.c_str());
     sds sdsnew;
     sdsnew = sdscatlen(c->obuf, key.c_str(), key.length());
