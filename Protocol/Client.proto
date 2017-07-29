@@ -296,6 +296,10 @@ message ReadOnlyTree {
             required string path = 1;
         }
         optional Read read = 5;
+        message Head {
+            required string path = 1;
+        }
+        optional Head head = 6;
     }
     message Response {
         optional Status status = 1;

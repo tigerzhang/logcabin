@@ -17,6 +17,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <list>
 
 #include "Core/ProtoBuf.h"
 
@@ -64,6 +65,8 @@ enum class Status {
      * A predicate on an operation was not satisfied.
      */
     CONDITION_NOT_MET = 4,
+
+    LIST_EMPTY = 5,
 };
 
 /**
@@ -113,6 +116,8 @@ class File {
      * Opaque data stored in the File.
      */
     std::string contents;
+
+    std::list<std::string> list;
 };
 
 /**
@@ -408,6 +413,9 @@ class Tree {
      */
     Result
     read(const std::string& path, std::string& contents) const;
+
+    Result
+    head(const std::string& path, std::string& contents) const;
 
     /**
      * Make sure a file does not exist.

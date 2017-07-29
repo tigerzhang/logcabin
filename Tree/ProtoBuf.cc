@@ -45,6 +45,10 @@ readOnlyTreeRPC(const Tree& tree,
         std::string contents;
         result = tree.read(request.read().path(), contents);
         response.mutable_read()->set_contents(contents);
+    } else if (request.has_head()) {
+        std::string contents;
+        result = tree.head(request.head().path(), contents);
+        response.mutable_read()->set_contents(contents);
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

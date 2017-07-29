@@ -808,6 +808,28 @@ ClientImpl::read(const std::string& path,
 }
 
 Result
+ClientImpl::head(const std::string& path,
+                 const std::string& workingDirectory,
+                 const Condition& condition,
+                 TimePoint timeout,
+                 std::string& contents) {
+    contents = "";
+    std::string realPath;
+    Result result = canonicalize(path, workingDirectory, realPath);
+    if (result.status != Status::OK)
+        return result;
+    Protocol::Client::ReadOnlyTree::Request request;
+    request.mutable_head()->set_path(realPath);
+    Protocol::Client::ReadOnlyTree::Response response;
+    treeCall(*leaderRPC,
+             request, response, timeout);
+    if (response.status() != Protocol::Client::Status::OK)
+        return treeError(response);
+    contents = response.read().contents();
+    return Result();
+}
+
+Result
 ClientImpl::removeFile(const std::string& path,
                        const std::string& workingDirectory,
                        const Condition& condition,

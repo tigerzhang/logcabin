@@ -300,3 +300,47 @@ All commits should pass the pre-commit hooks. Enable them to run before each
 commit:
 
     ln -s ../../hooks/pre-commit .git/hooks/pre-commit
+    
+List Support
+============
+
+Push back an item
+-----------------
+
+```$xslt
+$ ./build/Examples/TreeOps -c 127.0.0.1:5254 mkdir /app1
+$ echo -n "fid566" | ./build/Examples/TreeOps -c 127.0.0.1:5254 write /app0/t1 -q
+$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+
+uid2,did1,gid1,fid1,fid666,fid566,fid566
+```
+
+Get head item
+-------------
+
+```$xslt
+$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 head /app0/t1
+uid2
+```
+
+Remove an item from front
+-------------------------
+```$xslt
+$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+
+uid2,did1,gid1,fid1,fid666,fid566,fid566
+$ echo -n "-uid2" | ./build/Examples/TreeOps -c 127.0.0.1:5254 write /app0/t1 -q
+$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+did1,gid1,fid1,fid666,fid566,fid566
+
+```
+
+Remove all matched items
+------------------------
+```$xslt
+parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+did1,gid1,fid1,fid666,fid566,fid566
+parallels@ubuntu:~/logcabin$ echo -n "--fid566" | ./build/Examples/TreeOps -c 127.0.0.1:5254 write /app0/t1 -q
+parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+did1,gid1,fid1,fid666
+```

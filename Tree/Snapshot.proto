@@ -30,4 +30,10 @@ message Directory {
 message File {
     /// The contents of the file.
     required bytes contents = 1;
+
+    optional List list = 2;
+}
+
+message List {
+    repeated string items = 1;
 }

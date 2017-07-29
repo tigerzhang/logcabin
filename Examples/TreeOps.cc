@@ -37,6 +37,7 @@ enum class Command {
     RMDIR,
     WRITE,
     READ,
+    HEAD,
     REMOVE,
 };
 
@@ -135,6 +136,8 @@ class OptionParser {
             command = Command::WRITE;
         } else if (cmdStr == "read" || cmdStr == "get") {
             command = Command::READ;
+        } else if (cmdStr == "head") {
+            command = Command::HEAD;
         } else if (cmdStr == "remove" || cmdStr == "rm" ||
                    cmdStr == "removeFile") {
             command = Command::REMOVE;
@@ -363,6 +366,17 @@ main(int argc, char** argv)
                 break;
             case Command::READ: {
                 std::string contents = tree.readEx(path);
+                std::cout << contents;
+                if (contents.empty() ||
+                    contents.at(contents.size() - 1) != '\n') {
+                    std::cout << std::endl;
+                } else {
+                    std::cout.flush();
+                }
+                break;
+            }
+            case Command::HEAD: {
+                std::string contents = tree.headEx(path);
                 std::cout << contents;
                 if (contents.empty() ||
                     contents.at(contents.size() - 1) != '\n') {

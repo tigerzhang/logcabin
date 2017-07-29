@@ -15,6 +15,7 @@
  */
 
 #include <cassert>
+#include <algorithm>
 
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
@@ -67,6 +68,7 @@ namespace Internal {
 
 File::File()
     : contents()
+, list()
 {
 }
 
@@ -75,6 +77,9 @@ File::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 {
     Snapshot::File file;
     file.set_contents(contents);
+    for (auto i = list.begin(); i != list.end(); i++) {
+        file.mutable_list()->add_items(*i);
+    }
     stream.writeMessage(file);
 }
 
@@ -87,6 +92,10 @@ File::loadSnapshot(Core::ProtoBuf::InputStream& stream)
         PANIC("Couldn't read snapshot: %s", error.c_str());
     }
     contents = node.contents();
+    Snapshot::List l = node.list();
+    for (auto i = 0; i < l.items_size(); i++) {
+        list.push_back(l.items(i));
+    }
 }
 
 ////////// class Directory //////////
@@ -525,6 +534,27 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
         return result;
     }
     targetFile->contents = contents;
+
+    if (contents.length() > 0) {
+        if (contents.at(0) == '-') {
+            if (contents.length() > 1
+                    && contents.at(1) == '-') {
+                // remove all found items
+                std::string realContent = contents.substr(2);
+                targetFile->list.remove(realContent);
+            } else {
+                // remove an from front
+                std::string realContent = contents.substr(1);
+                auto pos = std::find(targetFile->list.begin(),
+                                     targetFile->list.end(),
+                                     realContent);
+                targetFile->list.erase(pos);
+            }
+        } else {
+            targetFile->list.push_back(contents);
+        }
+    }
+
     ++numWriteSuccess;
     return result;
 }
@@ -554,7 +584,56 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
         }
         return result;
     }
-    contents = targetFile->contents;
+//    contents = targetFile->contents;
+    for (auto i = targetFile->list.begin(); i != targetFile->list.end(); i++) {
+        if (i == targetFile->list.begin() )
+            contents = *i;
+        else
+            contents += "," + *i;
+    }
+    ++numReadSuccess;
+    return result;
+}
+
+Result
+Tree::head(const std::string& symbolicPath, std::string& contents) const
+{
+    ++numReadAttempted;
+    contents.clear();
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+    const Directory* parent;
+    Result result = normalLookup(path, &parent);
+    if (result.status != Status::OK)
+        return result;
+    const File* targetFile = parent->lookupFile(path.target);
+    if (targetFile == NULL) {
+        if (parent->lookupDirectory(path.target) != NULL) {
+            result.status = Status::TYPE_ERROR;
+            result.error = format("%s is a directory",
+                                  path.symbolic.c_str());
+        } else {
+            result.status = Status::LOOKUP_ERROR;
+            result.error = format("%s does not exist",
+                                  path.symbolic.c_str());
+        }
+        return result;
+    }
+//    contents = targetFile->contents;
+//    for (auto i = targetFile->list.begin(); i != targetFile->list.end(); i++) {
+//        if (i == targetFile->list.begin() )
+//            contents = *i;
+//        else
+//            contents += "," + *i;
+//    }
+    if (targetFile->list.empty()) {
+        result.status = Status::LIST_EMPTY;
+        result.error = format("%s list is empty",
+            path.symbolic.c_str());
+        return result;
+    }
+    contents = targetFile->list.front();
     ++numReadSuccess;
     return result;
 }

@@ -453,6 +453,19 @@ Tree::readEx(const std::string& path) const
     return contents;
 }
 
+std::string
+Tree::headEx(const std::string &path) const {
+    std::string contents;
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    treeDetails->clientImpl->head(
+        path,
+        treeDetails->workingDirectory,
+        treeDetails->condition,
+        ClientImpl::absTimeout(treeDetails->timeoutNanos),
+        contents);
+    return contents;
+}
+
 Result
 Tree::removeFile(const std::string& path)
 {

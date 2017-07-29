@@ -543,6 +543,9 @@ class Tree {
     std::string
     readEx(const std::string& path) const;
 
+    std::string
+    headEx(const std::string& path) const;
+
     /**
      * Make sure a file does not exist.
      * \param path
