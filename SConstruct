@@ -259,6 +259,9 @@ clientlib = env.StaticLibrary("build/logcabin",
                    object_files['Core']))
 env.Default(clientlib)
 
+libprotobuf = File('/usr/lib/libprotobuf.a')
+libcryptopp = File('/usr/lib/libcrypto++.a')
+
 daemon = env.Program("build/LogCabin",
             (["build/Server/Main.cc"] +
              object_files['Server'] +
@@ -269,7 +272,7 @@ daemon = env.Program("build/LogCabin",
              object_files['RPC'] +
              object_files['Event'] +
              object_files['Core']),
-            LIBS = [ "pthread", "protobuf", "rt", "cryptopp" ])
+            LIBS = [ "pthread", libprotobuf, "rt", libcryptopp ])
 env.Default(daemon)
 
 storageTool = env.Program("build/Storage/Tool",
