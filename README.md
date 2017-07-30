@@ -309,7 +309,7 @@ Push back an item
 
 ```$xslt
 $ LOCALSERVER=127.0.0.1:5254
-$ ./build/Examples/TreeOps -c $LOCALSERVER mkdir /app1
+$ ./build/Examples/TreeOps -c $LOCALSERVER mkdir /app0
 $ echo -n "fid566" | ./build/Examples/TreeOps -c $LOCALSERVER write /app0/t1 -q
 $ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
 
