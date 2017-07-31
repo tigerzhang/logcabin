@@ -344,3 +344,29 @@ parallels@ubuntu:~/logcabin$ echo -n "--fid566" | ./build/Examples/TreeOps -c 12
 parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
 did1,gid1,fid1,fid666
 ```
+
+String Set Support
+==================
+
+sadd
+----
+
+```
+parallels@ubuntu:~/logcabin$ echo -n "sset666" | ./build/Examples/TreeOps -q -c $LOCALSERVER sadd
+parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
+did1,gid1,fid1,fid666
+<jid555,jid566,jid666,sset666,
+<
+```
+
+srem
+----
+
+```
+parallels@ubuntu:~/logcabin$ echo -n "sset666" | ./build/Examples/TreeOps -q -c $LOCALSERVER srem /app0/t1
+parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
+did1,gid1,fid1,fid666
+<jid555,jid566,jid666,
+<
+```
+
