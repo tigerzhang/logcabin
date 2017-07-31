@@ -584,7 +584,8 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
     if (path.result.status != Status::OK)
         return path.result;
     Directory* parent;
-    Result result = normalLookup(path, &parent);
+//    Result result = normalLookup(path, &parent);
+    Result result = mkdirLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
     File* targetFile = parent->makeFile(path.target);
@@ -679,6 +680,9 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
             result.error = format("%s is not a file",
                                   ("/msgq/" + appkey + i).c_str());
             return result;
+        }
+        while (targetFileUidMsgq->list.size() > 10) {
+            targetFileUidMsgq->list.pop_front();
         }
         targetFileUidMsgq->list.push_back(contents);
     }
