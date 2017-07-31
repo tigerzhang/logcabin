@@ -518,6 +518,17 @@ class Tree {
     void
     writeEx(const std::string& path, const std::string& contents);
 
+    Result
+    sadd(const std::string& path, const std::string& contents);
+    void
+    saddEx(const std::string& path, const std::string& contents);
+
+
+    Result
+    srem(const std::string& path, const std::string& contents);
+    void
+    sremEx(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path

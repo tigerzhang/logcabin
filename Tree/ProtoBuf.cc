@@ -79,6 +79,12 @@ readWriteTreeRPC(Tree& tree,
                             request.write().contents());
     } else if (request.has_remove_file()) {
         result = tree.removeFile(request.remove_file().path());
+    } else if (request.has_sadd()) {
+        result = tree.sadd(request.sadd().path(),
+                           request.sadd().contents());
+    } else if (request.has_srem()) {
+        result = tree.srem(request.srem().path(),
+        request.srem().contents());
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

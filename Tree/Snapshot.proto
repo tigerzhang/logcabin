@@ -32,8 +32,15 @@ message File {
     required bytes contents = 1;
 
     optional List list = 2;
+    optional List sset = 3;
+    optional ISet iset = 4;
 }
 
 message List {
     repeated string items = 1;
 }
+
+message ISet {
+    repeated uint64 items = 1;
+}
+

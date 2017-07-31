@@ -39,6 +39,8 @@ enum class Command {
     READ,
     HEAD,
     REMOVE,
+    SADD,
+    SREM,
 };
 
 /**
@@ -141,6 +143,10 @@ class OptionParser {
         } else if (cmdStr == "remove" || cmdStr == "rm" ||
                    cmdStr == "removeFile") {
             command = Command::REMOVE;
+        } else if (cmdStr == "sadd") {
+            command = Command::SADD;
+        } else if (cmdStr == "srem") {
+            command = Command::SREM;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -388,6 +394,12 @@ main(int argc, char** argv)
             }
             case Command::REMOVE:
                 tree.removeFileEx(path);
+                break;
+            case Command::SADD:
+                tree.saddEx(path, readStdin());
+                break;
+            case Command::SREM:
+                tree.sremEx(path, readStdin());
                 break;
         }
         return 0;

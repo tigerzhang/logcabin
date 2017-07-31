@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <set>
 
 #include "Core/ProtoBuf.h"
 
@@ -118,6 +119,9 @@ class File {
     std::string contents;
 
     std::list<std::string> list;
+
+    std::set<std::string> sset;
+    std::set<uint64_t> iset;
 };
 
 /**
@@ -396,6 +400,12 @@ class Tree {
      */
     Result
     write(const std::string& path, const std::string& contents);
+
+    Result
+    sadd(const std::string& path, const std::string& contents);
+
+    Result
+    srem(const std::string& path, const std::string& contents);
 
     /**
      * Get the value of a file.

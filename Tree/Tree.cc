@@ -50,6 +50,9 @@ operator<<(std::ostream& os, Status status)
         case Status::CONDITION_NOT_MET:
             os << "Status::CONDITION_NOT_MET";
             break;
+        case Status::LIST_EMPTY:
+            os << "Status::LIST_EMPTY";
+            break;
     }
     return os;
 }
@@ -69,6 +72,8 @@ namespace Internal {
 File::File()
     : contents()
 , list()
+, sset()
+, iset()
 {
 }
 
@@ -79,6 +84,12 @@ File::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
     file.set_contents(contents);
     for (auto i = list.begin(); i != list.end(); i++) {
         file.mutable_list()->add_items(*i);
+    }
+    for (auto i : sset) {
+        file.mutable_sset()->add_items(i);
+    }
+    for (auto i : iset) {
+        file.mutable_iset()->add_items(i);
     }
     stream.writeMessage(file);
 }
@@ -95,6 +106,12 @@ File::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     Snapshot::List l = node.list();
     for (auto i = 0; i < l.items_size(); i++) {
         list.push_back(l.items(i));
+    }
+    for (auto i = 0; i < node.sset().items_size(); i++) {
+        sset.insert(node.sset().items(i));
+    }
+    for (auto i = 0; i < node.iset().items_size(); i++) {
+        iset.insert(node.iset().items(i));
     }
 }
 
@@ -560,6 +577,62 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
 }
 
 Result
+Tree::sadd(const std::string& symbolicPath, const std::string& contents)
+{
+    ++numWriteAttempted;
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+    Directory* parent;
+    Result result = normalLookup(path, &parent);
+    if (result.status != Status::OK)
+        return result;
+    File* targetFile = parent->makeFile(path.target);
+    if (targetFile == NULL) {
+        result.status = Status::TYPE_ERROR;
+        result.error = format("%s is a directory",
+                              path.symbolic.c_str());
+        return result;
+    }
+    targetFile->contents = contents;
+
+    if (contents.length() > 0) {
+        targetFile->sset.insert(contents);
+    }
+
+    ++numWriteSuccess;
+    return result;
+}
+
+Result
+Tree::srem(const std::string& symbolicPath, const std::string& contents)
+{
+    ++numWriteAttempted;
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+    Directory* parent;
+    Result result = normalLookup(path, &parent);
+    if (result.status != Status::OK)
+        return result;
+    File* targetFile = parent->makeFile(path.target);
+    if (targetFile == NULL) {
+        result.status = Status::TYPE_ERROR;
+        result.error = format("%s is a directory",
+                              path.symbolic.c_str());
+        return result;
+    }
+    targetFile->contents = contents;
+
+    if (contents.length() > 0) {
+        targetFile->sset.erase(contents);
+    }
+
+    ++numWriteSuccess;
+    return result;
+}
+
+Result
 Tree::read(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
@@ -591,6 +664,19 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
         else
             contents += "," + *i;
     }
+
+    contents += "\n<";
+    for (auto i : targetFile->sset) {
+        contents += i + ",";
+    }
+    // contents.at(contents.length() - 1) = '>';
+    contents += "\n<";
+    for (auto i : targetFile->iset) {
+        std::stringstream ss;
+        ss << i;
+        contents += ss.str() + ",";
+    }
+    // contents.at(contents.length() - 1) = ">";
     ++numReadSuccess;
     return result;
 }

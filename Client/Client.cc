@@ -434,6 +434,42 @@ Tree::writeEx(const std::string& path, const std::string& contents)
 }
 
 Result
+Tree::sadd(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->sadd(
+        path,
+        treeDetails->workingDirectory,
+        contents,
+        treeDetails->condition,
+        ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+void
+Tree::saddEx(const std::string& path, const std::string& contents)
+{
+    throwException(sadd(path, contents), treeDetails->timeoutNanos);
+}
+
+Result
+Tree::srem(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->srem(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+void
+Tree::sremEx(const std::string& path, const std::string& contents)
+{
+    throwException(srem(path, contents), treeDetails->timeoutNanos);
+}
+
+Result
 Tree::read(const std::string& path, std::string& contents) const
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();

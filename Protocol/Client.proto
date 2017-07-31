@@ -344,6 +344,8 @@ message ReadWriteTree {
         }
         optional RemoveFile remove_file = 6;
 
+        optional Write sadd = 7;
+        optional Write srem = 8;
     }
     message Response {
         optional Status status = 1;

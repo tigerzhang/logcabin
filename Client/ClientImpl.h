@@ -137,6 +137,20 @@ class ClientImpl {
                  const Condition& condition,
                  TimePoint timeout);
 
+    /// See Tree::sadd.
+    Result sadd(const std::string& path,
+                 const std::string& workingDirectory,
+                 const std::string& contents,
+                 const Condition& condition,
+                 TimePoint timeout);
+
+    /// See Tree::srem.
+    Result srem(const std::string& path,
+                const std::string& workingDirectory,
+                const std::string& contents,
+                const Condition& condition,
+                TimePoint timeout);
+
     /// See Tree::read.
     Result read(const std::string& path,
                 const std::string& workingDirectory,
