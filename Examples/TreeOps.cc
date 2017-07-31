@@ -41,6 +41,7 @@ enum class Command {
     REMOVE,
     SADD,
     SREM,
+    PUB,
 };
 
 /**
@@ -147,6 +148,8 @@ class OptionParser {
             command = Command::SADD;
         } else if (cmdStr == "srem") {
             command = Command::SREM;
+        } else if (cmdStr == "pub") {
+            command = Command::PUB;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -400,7 +403,10 @@ main(int argc, char** argv)
                 break;
             case Command::SREM:
                 tree.sremEx(path, readStdin());
+            case Command::PUB: {
+                tree.pubEx(path, readStdin());
                 break;
+            }
         }
         return 0;
 

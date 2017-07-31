@@ -84,7 +84,10 @@ readWriteTreeRPC(Tree& tree,
                            request.sadd().contents());
     } else if (request.has_srem()) {
         result = tree.srem(request.srem().path(),
-        request.srem().contents());
+                           request.srem().contents());
+    } else if (request.has_pub()) {
+        result = tree.pub(request.pub().path(),
+        request.pub().contents());
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

@@ -407,6 +407,9 @@ class Tree {
     Result
     srem(const std::string& path, const std::string& contents);
 
+    Result
+    pub(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path

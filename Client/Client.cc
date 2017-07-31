@@ -469,6 +469,24 @@ Tree::sremEx(const std::string& path, const std::string& contents)
     throwException(srem(path, contents), treeDetails->timeoutNanos);
 }
 
+void
+Tree::pubEx(const std::string& path, const std::string& contents)
+{
+    throwException(pub(path, contents), treeDetails->timeoutNanos);
+}
+
+Result
+Tree::pub(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->pub(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
 Result
 Tree::read(const std::string& path, std::string& contents) const
 {

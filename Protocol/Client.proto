@@ -346,6 +346,7 @@ message ReadWriteTree {
 
         optional Write sadd = 7;
         optional Write srem = 8;
+        optional Write pub = 9;
     }
     message Response {
         optional Status status = 1;

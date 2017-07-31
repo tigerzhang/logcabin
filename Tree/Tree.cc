@@ -615,10 +615,10 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
     Result result = normalLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
-    File* targetFile = parent->makeFile(path.target);
+    File* targetFile = parent->lookupFile(path.target);
     if (targetFile == NULL) {
-        result.status = Status::TYPE_ERROR;
-        result.error = format("%s is a directory",
+        result.status = Status::LOOKUP_ERROR;
+        result.error = format("%s does not exist",
                               path.symbolic.c_str());
         return result;
     }
@@ -626,6 +626,61 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
 
     if (contents.length() > 0) {
         targetFile->sset.erase(contents);
+    }
+
+    ++numWriteSuccess;
+    return result;
+}
+
+Result
+Tree::pub(const std::string& symbolicPath, const std::string& contents)
+{
+    ++numWriteAttempted;
+    Path pathTopic2(symbolicPath);
+    if (pathTopic2.result.status != Status::OK)
+        return pathTopic2.result;
+    Directory* parentTopic2;
+    Result result = normalLookup(pathTopic2, &parentTopic2);
+    if (result.status != Status::OK)
+        return result;
+    File* targetFileTopic = parentTopic2->lookupFile(pathTopic2.target);
+    if (targetFileTopic == NULL) {
+        result.status = Status::LOOKUP_ERROR;
+        result.error = format("%s does not exist",
+                              pathTopic2.symbolic.c_str());
+        return result;
+    }
+
+    if (pathTopic2.parents.size() < 3) {
+        result.status = Status::INVALID_ARGUMENT;
+        result.error = format("%s is invalid. /tfs/<appkey>/<topic> is expected",
+        pathTopic2.symbolic.c_str());
+
+        return result;
+    }
+
+    std::string appkey = pathTopic2.parents[2];
+    VERBOSE("appkey %s", appkey.c_str());
+
+    // a fake path just for get the parent path
+    Path pathMsgq("/msgq/" + appkey + "/0");
+    if (pathMsgq.result.status != Status::OK)
+        return pathMsgq.result;
+    Directory* parentMsgq;
+    result = normalLookup(pathMsgq, &parentMsgq);
+    if (result.status != Status::OK)
+        return result;
+
+    // push back the message id to all uids
+    for (auto i : targetFileTopic->sset) {
+        File* targetFileUidMsgq = parentMsgq->makeFile(i);
+        if (targetFileUidMsgq == NULL) {
+            result.status = Status::TYPE_ERROR;
+            result.error = format("%s is not a file",
+                                  ("/msgq/" + appkey + i).c_str());
+            return result;
+        }
+        targetFileUidMsgq->list.push_back(contents);
     }
 
     ++numWriteSuccess;

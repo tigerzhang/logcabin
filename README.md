@@ -371,3 +371,35 @@ did1,gid1,fid1,fid666
 <
 ```
 
+Publish to A Topic
+==================
+
+```
+$ export LOCALSERVER=127.0.0.1:5254
+$ while [ $i -le 11000 ]; do echo -n "uid$i" | ./build/Examples/TreeOps -c $LOCALSERVER sadd /tfs/app1/t1 -q; (( i++ )); done
+$ time `echo -n "700" | ./build/Examples/TreeOps -c $LOCALSERVER pub /tfs/app1/t1`
+$ ./build/Examples/TreeOps -c $LOCALSERVER read /msgq/app1/uid9999
+2017-07-31 12:57:17.848273 Client/ClientImpl.cc:455 in ClientImpl() NOTICE[9617:thread 1]: Configuration settings:
+# begin config
+# end config
+2017-07-31 12:57:17.848403 Client/ClientImpl.cc:481 in initDerived() NOTICE[9617:thread 1]: Using server list: 127.0.0.1:5254
+700
+<
+<
+$ ./build/Examples/TreeOps -c $LOCALSERVER read /msgq/app1/uid9998
+2017-07-31 12:57:17.848273 Client/ClientImpl.cc:455 in ClientImpl() NOTICE[9617:thread 1]: Configuration settings:
+# begin config
+# end config
+2017-07-31 12:57:17.848403 Client/ClientImpl.cc:481 in initDerived() NOTICE[9617:thread 1]: Using server list: 127.0.0.1:5254
+700
+<
+<
+$ ./build/Examples/TreeOps -c $LOCALSERVER read /msgq/app1/uid9997
+2017-07-31 12:57:17.848273 Client/ClientImpl.cc:455 in ClientImpl() NOTICE[9617:thread 1]: Configuration settings:
+# begin config
+# end config
+2017-07-31 12:57:17.848403 Client/ClientImpl.cc:481 in initDerived() NOTICE[9617:thread 1]: Using server list: 127.0.0.1:5254
+700
+<
+<
+```
