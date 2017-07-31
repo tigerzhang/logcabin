@@ -308,9 +308,10 @@ Push back an item
 -----------------
 
 ```$xslt
-$ ./build/Examples/TreeOps -c 127.0.0.1:5254 mkdir /app1
-$ echo -n "fid566" | ./build/Examples/TreeOps -c 127.0.0.1:5254 write /app0/t1 -q
-$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+$ LOCALSERVER=127.0.0.1:5254
+$ ./build/Examples/TreeOps -c $LOCALSERVER mkdir /app0
+$ echo -n "fid566" | ./build/Examples/TreeOps -c $LOCALSERVER write /app0/t1 -q
+$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
 
 uid2,did1,gid1,fid1,fid666,fid566,fid566
 ```
@@ -319,18 +320,18 @@ Get head item
 -------------
 
 ```$xslt
-$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 head /app0/t1
+$ ./build/Examples/TreeOps -q -c $LOCALSERVER head /app0/t1
 uid2
 ```
 
 Remove an item from front
 -------------------------
 ```$xslt
-$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
 
 uid2,did1,gid1,fid1,fid666,fid566,fid566
-$ echo -n "-uid2" | ./build/Examples/TreeOps -c 127.0.0.1:5254 write /app0/t1 -q
-$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+$ echo -n "-uid2" | ./build/Examples/TreeOps -c $LOCALSERVER write /app0/t1 -q
+$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
 did1,gid1,fid1,fid666,fid566,fid566
 
 ```
@@ -338,10 +339,10 @@ did1,gid1,fid1,fid666,fid566,fid566
 Remove all matched items
 ------------------------
 ```$xslt
-parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
 did1,gid1,fid1,fid666,fid566,fid566
-parallels@ubuntu:~/logcabin$ echo -n "--fid566" | ./build/Examples/TreeOps -c 127.0.0.1:5254 write /app0/t1 -q
-parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c 127.0.0.1:5254 read /app0/t1
+parallels@ubuntu:~/logcabin$ echo -n "--fid566" | ./build/Examples/TreeOps -c $LOCALSERVER write /app0/t1 -q
+parallels@ubuntu:~/logcabin$ ./build/Examples/TreeOps -q -c $LOCALSERVER read /app0/t1
 did1,gid1,fid1,fid666
 ```
 
