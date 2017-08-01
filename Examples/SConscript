@@ -1,6 +1,14 @@
 Import('env')
 
-libs = [ "pthread", "protobuf", "rt", "cryptopp" ]
+libprotobuf = File('/usr/lib/libprotobuf.a')
+libcryptopp = File('/usr/lib/libcrypto++.a')
+liblua = File('#/ardb/deps/lua/src/liblua.a')
+libsnappy = File('/usr/lib/libsnappy.a')
+libjemalloc = File('#/ardb/deps/jemalloc-4.4.0/lib/libjemalloc.a')
+librocksdb = File('#/ardb/deps/rocksdb-5.2.1/librocksdb.a')
+libardb = File('#/ardb/src/libardb.a')
+
+libs = [ "pthread", libprotobuf, "rt", libardb, librocksdb, liblua, libcryptopp, libjemalloc, "lz4", "z", "bz2", "snappy"]
 
 env.Default([
     env.Program("Benchmark",

@@ -358,6 +358,10 @@ Tree::Tree()
     // Create the root directory so that users don't have to explicitly
     // call makeDirectory("/").
     superRoot.makeDirectory("root");
+
+    if (ardb.Init("ardb.conf") != 0) {
+        PANIC("Open ardb failed.");
+    }
 }
 
 Result

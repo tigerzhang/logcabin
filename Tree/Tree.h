@@ -22,6 +22,10 @@
 
 #include "Core/ProtoBuf.h"
 
+#include <db/db.hpp>
+#include <statistics.hpp>
+#include <util/file_helper.hpp>
+
 #ifndef LOGCABIN_TREE_TREE_H
 #define LOGCABIN_TREE_TREE_H
 
@@ -527,6 +531,8 @@ class Tree {
     uint64_t numRemoveFileTargetNotFound;
     uint64_t numRemoveFileDone;
     uint64_t numRemoveFileSuccess;
+
+    ardb::Ardb ardb;
 };
 
 

@@ -25,6 +25,14 @@ def GetTestFiles(src_dirs, variant_dir):
                                  variant_dir=variant_dir)
                     for src_dir in src_dirs])
 
+libprotobuf = File('/usr/lib/libprotobuf.a')
+libcryptopp = File('/usr/lib/libcrypto++.a')
+liblua = File('#/ardb/deps/lua/src/liblua.a')
+libsnappy = File('/usr/lib/libsnappy.a')
+libjemalloc = File('#/ardb/deps/jemalloc-4.4.0/lib/libjemalloc.a')
+librocksdb = File('#/ardb/deps/rocksdb-5.2.1/librocksdb.a')
+libardb = File('#/ardb/src/libardb.a')
+
 testrunner = env.Program("test",
             (["TestRunner.cc", "gtest-all.o"] +
              object_files['Server'] +
@@ -45,7 +53,7 @@ testrunner = env.Program("test",
                  "#Storage",
                  "#Server",
              ], variant_dir='#build')),
-            LIBS = [ "pthread", "protobuf", "rt", "cryptopp" ],
+            LIBS = [ "pthread", libprotobuf, "rt", libardb, librocksdb, liblua, libcryptopp, libjemalloc, "lz4", "z", "bz2", "snappy"],
             CPPPATH = env["CPPPATH"] + ["#gtest/include"],
             # -fno-access-control allows tests to access private members
             CXXFLAGS = env["CXXFLAGS"] + ["-fno-access-control"])
