@@ -115,12 +115,41 @@ File::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     }
 }
 
+uint64_t
+File::size() const {
+    uint64_t size = sizeof(File);
+
+    size += contents.size();
+    for (auto i : list) {
+        size += i.size();
+    }
+    for (auto i : sset) {
+        size += i.size();
+    }
+    size += iset.size() * 8;
+
+    return size;
+}
+
 ////////// class Directory //////////
 
 Directory::Directory()
     : directories()
     , files()
 {
+}
+
+uint64_t
+Directory::size() const {
+    uint64_t size = sizeof(Directory);
+
+    for (auto it = directories.begin(); it != directories.end(); ++it) {
+        size += it->second.size();
+    }
+    for (auto it = files.begin(); it != files.end(); ++it) {
+        size += it->second.size();
+    }
+    return size;
 }
 
 std::vector<std::string>

@@ -122,6 +122,8 @@ class File {
 
     std::set<std::string> sset;
     std::set<uint64_t> iset;
+
+    uint64_t size() const;
 };
 
 /**
@@ -143,6 +145,8 @@ class Directory {
      *      lexicographically), then files (sorted lexicographically).
      */
     std::vector<std::string> getChildren() const;
+
+    uint64_t size() const;
 
     /**
      * Find the child directory by the given name.
