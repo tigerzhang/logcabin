@@ -666,8 +666,9 @@ Result
 Tree::sadd(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
-    Path path(symbolicPath);
+
 #ifdef MEM_FSM
+    Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
     Directory* parent;
@@ -691,12 +692,31 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
 
 #ifdef ROCKSDB_FSM
     Result result;
-    ardb::codec::ArgumentArray cmdArray;
-    cmdArray.push_back("sadd");
-    cmdArray.push_back(symbolicPath);
-    cmdArray.push_back(contents);
-    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
-    ardb.Call(worker_ctx, redisCommandFrame);
+    size_t pos = contents.find('-');
+    if (pos >= 0) {
+        std::string start = contents.substr(0, pos-1);
+        int iStart = atoi(start.c_str());
+        std::string end = contents.substr(pos + 1);
+        int iEnd = atoi(end.c_str());
+
+        for (auto i = iStart; i <= iEnd; i++) {
+            ardb::codec::ArgumentArray cmdArray;
+            cmdArray.push_back("sadd");
+            cmdArray.push_back(symbolicPath);
+            std::stringstream ss;
+            ss << i;
+            cmdArray.push_back("uid" + ss.str());
+            ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+            ardb.Call(worker_ctx, redisCommandFrame);
+        }
+    } else {
+        ardb::codec::ArgumentArray cmdArray;
+        cmdArray.push_back("sadd");
+        cmdArray.push_back(symbolicPath);
+        cmdArray.push_back(contents);
+        ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+        ardb.Call(worker_ctx, redisCommandFrame);
+    }
 #endif // ROCKSDB_FSM
 
     ++numWriteSuccess;
