@@ -29,6 +29,8 @@
 #ifndef LOGCABIN_TREE_TREE_H
 #define LOGCABIN_TREE_TREE_H
 
+#define ROCKSDB_FSM
+
 namespace LogCabin {
 
 // forward declaration
@@ -506,7 +508,9 @@ class Tree {
      * has a name of a target within a parent directory -- even those operating
      * on the root directory.
      */
+#ifdef MEM_FSM
     Internal::Directory superRoot;
+#endif // MEM_FSM
 
     // Server stats collected in updateServerStats.
     // Note that when a condition fails, the operation is not invoked,
@@ -532,7 +536,10 @@ class Tree {
     uint64_t numRemoveFileDone;
     uint64_t numRemoveFileSuccess;
 
+#ifdef ROCKSDB_FSM
     ardb::Ardb ardb;
+    ardb::Context worker_ctx;
+#endif // ROCKSDB_FSM
 };
 
 

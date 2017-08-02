@@ -106,12 +106,13 @@ if (env['CXX_FAMILY'] == 'gcc' and
 
 if env['CXX_FAMILY'] == 'gcc':
     env.Prepend(CXXFLAGS = [
+        "-fpermissive",
         "-Wall",
         "-Wextra",
         "-Wcast-align",
-        "-Wcast-qual",
-        "-Wconversion",
-        "-Weffc++",
+        # "-Wcast-qual",
+        # "-Wconversion",
+        # "-Weffc++",
         "-Wformat=2",
         "-Wmissing-format-attribute",
         "-Wno-non-template-friend",

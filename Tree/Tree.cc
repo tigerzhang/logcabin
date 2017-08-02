@@ -185,11 +185,15 @@ Directory::lookupDirectory(const std::string& name) const
 Directory*
 Directory::makeDirectory(const std::string& name)
 {
+#ifdef MEM_FSM
     assert(!name.empty());
     assert(!Core::StringUtil::endsWith(name, "/"));
     if (lookupFile(name) != NULL)
         return NULL;
     return &directories[name];
+#else
+    return NULL;
+#endif // MEM_FSM
 }
 
 void
@@ -332,9 +336,11 @@ Path::parentsThrough(std::vector<std::string>::const_iterator end) const
 
 ////////// class Tree //////////
 
-Tree::Tree()
-    : superRoot()
-    , numConditionsChecked(0)
+Tree::Tree() :
+#ifdef MEM_FSM
+    superRoot(),
+#endif // MEM_FSM
+    numConditionsChecked(0)
     , numConditionsFailed(0)
     , numMakeDirectoryAttempted(0)
     , numMakeDirectorySuccess(0)
@@ -354,14 +360,19 @@ Tree::Tree()
     , numRemoveFileTargetNotFound(0)
     , numRemoveFileDone(0)
     , numRemoveFileSuccess(0)
+    , worker_ctx()
 {
     // Create the root directory so that users don't have to explicitly
     // call makeDirectory("/").
+#ifdef MEM_FSM
     superRoot.makeDirectory("root");
+#endif // MEM_FSM
 
     if (ardb.Init("ardb.conf") != 0) {
         PANIC("Open ardb failed.");
     }
+
+    worker_ctx.ClearFlags();
 }
 
 Result
@@ -376,6 +387,7 @@ Tree::normalLookup(const Path& path, const Directory** parent) const
 {
     *parent = NULL;
     Result result;
+#ifdef FSM_MEM
     const Directory* current = &superRoot;
     for (auto it = path.parents.begin(); it != path.parents.end(); ++it) {
         const Directory* next = current->lookupDirectory(*it);
@@ -396,6 +408,7 @@ Tree::normalLookup(const Path& path, const Directory** parent) const
         current = next;
     }
     *parent = current;
+#endif // FSM_MEM
     return result;
 }
 
@@ -404,6 +417,7 @@ Tree::mkdirLookup(const Path& path, Directory** parent)
 {
     *parent = NULL;
     Result result;
+#ifdef FSM_MEM
     Directory* current = &superRoot;
     for (auto it = path.parents.begin(); it != path.parents.end(); ++it) {
         Directory* next = current->makeDirectory(*it);
@@ -417,13 +431,26 @@ Tree::mkdirLookup(const Path& path, Directory** parent)
         current = next;
     }
     *parent = current;
+#endif
     return result;
 }
 
 void
 Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 {
+#ifdef FSM_MEM
     superRoot.dumpSnapshot(stream);
+#endif // FSM_MEM
+
+#ifdef ROCKSDB_FSM
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("save");
+    cmdArray.push_back("backup");
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb::Context ctx;
+    ardb.Call(ctx, redisCommandFrame);
+    NOTICE(ctx.GetReply().GetString().c_str());
+#endif // ROCKSDB_FSM
 }
 
 /**
@@ -432,8 +459,10 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 void
 Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
 {
+#ifdef FSM_MEM
     superRoot = Directory();
     superRoot.loadSnapshot(stream);
+#endif // FSM_MEM
 }
 
 
@@ -474,6 +503,7 @@ Result
 Tree::makeDirectory(const std::string& symbolicPath)
 {
     ++numMakeDirectoryAttempted;
+#ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -487,6 +517,9 @@ Tree::makeDirectory(const std::string& symbolicPath)
                               path.symbolic.c_str());
         return result;
     }
+#else
+    Result result;
+#endif // MEM_FSM
     ++numMakeDirectorySuccess;
     return result;
 }
@@ -496,6 +529,7 @@ Tree::listDirectory(const std::string& symbolicPath,
                     std::vector<std::string>& children) const
 {
     ++numListDirectoryAttempted;
+#ifdef MEM_FSM
     children.clear();
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -518,6 +552,9 @@ Tree::listDirectory(const std::string& symbolicPath,
         return result;
     }
     children = targetDir->getChildren();
+#else
+    Result result;
+#endif // MEM_FSM
     ++numListDirectorySuccess;
     return result;
 }
@@ -526,6 +563,7 @@ Result
 Tree::removeDirectory(const std::string& symbolicPath)
 {
     ++numRemoveDirectoryAttempted;
+#ifdef FSM_MEM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -560,6 +598,8 @@ Tree::removeDirectory(const std::string& symbolicPath)
         // is to drop but then recreate the directory.
         parent->makeDirectory(path.target);
     }
+#endif // FSM_MEM
+    Result result;
     ++numRemoveDirectoryDone;
     ++numRemoveDirectorySuccess;
     return result;
@@ -569,6 +609,7 @@ Result
 Tree::write(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
+#ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -583,6 +624,7 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
                               path.symbolic.c_str());
         return result;
     }
+
     targetFile->contents = contents;
 
     if (contents.length() > 0) {
@@ -604,6 +646,17 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
             targetFile->list.push_back(contents);
         }
     }
+#endif // MEM_FSM
+
+#ifdef ROCKSDB_FSM
+    Result result;
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("lpush");
+    cmdArray.push_back(symbolicPath);
+    cmdArray.push_back(contents);
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb.Call(worker_ctx, redisCommandFrame);
+#endif // ROCKSDB_FSM
 
     ++numWriteSuccess;
     return result;
@@ -614,6 +667,7 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
     Path path(symbolicPath);
+#ifdef MEM_FSM
     if (path.result.status != Status::OK)
         return path.result;
     Directory* parent;
@@ -633,6 +687,17 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
     if (contents.length() > 0) {
         targetFile->sset.insert(contents);
     }
+#endif // MEM_FSM
+
+#ifdef ROCKSDB_FSM
+    Result result;
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("sadd");
+    cmdArray.push_back(symbolicPath);
+    cmdArray.push_back(contents);
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb.Call(worker_ctx, redisCommandFrame);
+#endif // ROCKSDB_FSM
 
     ++numWriteSuccess;
     return result;
@@ -642,6 +707,7 @@ Result
 Tree::srem(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
+#ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -661,6 +727,17 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
     if (contents.length() > 0) {
         targetFile->sset.erase(contents);
     }
+#endif // MEM_FSM
+
+#ifdef ROCKSDB_FSM
+    Result result;
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("srem");
+    cmdArray.push_back(symbolicPath);
+    cmdArray.push_back(contents);
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb.Call(worker_ctx, redisCommandFrame);
+#endif // ROCKSDB_FSM
 
     ++numWriteSuccess;
     return result;
@@ -670,6 +747,7 @@ Result
 Tree::pub(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
+#ifdef MEM_FSM
     Path pathTopic2(symbolicPath);
     if (pathTopic2.result.status != Status::OK)
         return pathTopic2.result;
@@ -719,6 +797,38 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
         }
         targetFileUidMsgq->list.push_back(contents);
     }
+#endif // MEM_FSM
+
+#ifdef ROCKSDB_FSM
+    Result result;
+    // read uids from tfs
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("smembers");
+    cmdArray.push_back(symbolicPath);
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb.Call(worker_ctx, redisCommandFrame);
+    RedisReply &r = worker_ctx.GetReply();
+
+    // extract the appkey
+    size_t start = symbolicPath.find('/', 1);
+    size_t end = symbolicPath.find('/', start+1);
+    std::string appkey = symbolicPath.substr(start+1, end - start - 1);
+
+    // push back the message id to all uids
+    if (r.elements != NULL && !r.elements->empty())
+    {
+        for (uint32 i = 0; i < r.elements->size(); i++)
+        {
+            std::string uid = r.elements->at(i)->GetString();
+            cmdArray.clear();
+            cmdArray.push_back("lpush");
+            cmdArray.push_back("/m/" + appkey + "/" + uid);
+            cmdArray.push_back(contents);
+            ardb::codec::RedisCommandFrame lpushCommandFrame(cmdArray);
+            ardb.Call(worker_ctx, lpushCommandFrame);
+        }
+    }
+#endif // ROCKSDB_FSM
 
     ++numWriteSuccess;
     return result;
@@ -729,6 +839,7 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
     contents.clear();
+#ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -769,6 +880,42 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
         contents += ss.str() + ",";
     }
     // contents.at(contents.length() - 1) = ">";
+#endif // MEM_FSM
+
+#ifdef ROCKSDB_FSM
+    Result result;
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("smembers");
+    cmdArray.push_back(symbolicPath);
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb::Context ctx;
+    ardb.Call(ctx, redisCommandFrame);
+    RedisReply &r = ctx.GetReply();
+    if (r.elements != NULL && !r.elements->empty())
+    {
+        for (uint32 i = 0; i < r.elements->size(); i++)
+        {
+            contents += r.elements->at(i)->GetString() + ",";
+        }
+    }
+
+    cmdArray.clear();
+    cmdArray.push_back("lrange");
+    cmdArray.push_back(symbolicPath);
+    cmdArray.push_back("0");
+    cmdArray.push_back("-1");
+    ardb::codec::RedisCommandFrame redisCommandFrame2(cmdArray);
+    ardb.Call(ctx, redisCommandFrame2);
+    r = ctx.GetReply();
+    if (r.elements != NULL && !r.elements->empty())
+    {
+        for (uint32 i = 0; i < r.elements->size(); i++)
+        {
+            contents += r.elements->at(i)->GetString() + ",";
+        }
+    }
+#endif // ROCKSDB_FSM
+
     ++numReadSuccess;
     return result;
 }
@@ -778,6 +925,7 @@ Tree::head(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
     contents.clear();
+#ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -812,6 +960,9 @@ Tree::head(const std::string& symbolicPath, std::string& contents) const
         return result;
     }
     contents = targetFile->list.front();
+#else
+    Result result;
+#endif // MEM_FSM
     ++numReadSuccess;
     return result;
 }
@@ -820,6 +971,7 @@ Result
 Tree::removeFile(const std::string& symbolicPath)
 {
     ++numRemoveFileAttempted;
+#ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -843,6 +995,9 @@ Tree::removeFile(const std::string& symbolicPath)
         ++numRemoveFileDone;
     else
         ++numRemoveFileTargetNotFound;
+#else
+    Result result;
+#endif
     ++numRemoveFileSuccess;
     return result;
 }

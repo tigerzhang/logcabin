@@ -217,15 +217,19 @@ TEST(TreeDirectoryTest, dumpSnapshot)
     Storage::Layout layout;
     layout.initTemporary();
     {
+#ifdef MEM_FSM
         Storage::SnapshotFile::Writer writer(layout);
         tree.superRoot.dumpSnapshot(writer);
         writer.save();
+#endif // MEM_FSM
     }
     {
+#ifdef MEM_FSM
         Storage::SnapshotFile::Reader reader(layout);
         Tree t2;
         t2.superRoot.loadSnapshot(reader);
         EXPECT_EQ(dumpTree(tree), dumpTree(t2));
+#endif // MEM_FSM
     }
 }
 
