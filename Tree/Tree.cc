@@ -16,12 +16,27 @@
 
 #include <cassert>
 #include <algorithm>
+#include <dirent.h>
+#include <ardb/src/network.hpp>
+#include <ardb/src/repl/repl.hpp>
+#include <sys/stat.h>
+#include <rocksdb/db.h>
+#include <rocksdb/snapshot.h>
+#include <rocksdb/options.h>
+#include <rocksdb/iterator.h>
+#include <ardb/src/db/rocksdb/rocksdb_engine.hpp>
 
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
 #include "Core/Debug.h"
 #include "Core/StringUtil.h"
 #include "Tree/Tree.h"
+
+#ifdef ROCKSDB_FSM
+#include <ardb/src/db/codec.hpp>
+#include <Server/RaftConsensus.h>
+
+#endif // ROCKSDB_FSM_REAL
 
 namespace LogCabin {
 namespace Tree {
@@ -360,7 +375,19 @@ Tree::Tree() :
     , numRemoveFileTargetNotFound(0)
     , numRemoveFileDone(0)
     , numRemoveFileSuccess(0)
+#ifdef ARDB_FSM
+    , ardb()
     , worker_ctx()
+    , rdb(NULL)
+#endif // ROCKSDB_FSM
+#ifdef ROCKSDB_FSM
+    , raft(NULL)
+    , checkpoint(NULL)
+    , snapshot(NULL)
+    , disableWAL(true)
+    , option(std::move(rocksdb::WriteOptions()))
+//    , cf(NULL)
+#endif // ROCKSDB_FSM_REAL
 {
     // Create the root directory so that users don't have to explicitly
     // call makeDirectory("/").
@@ -368,12 +395,132 @@ Tree::Tree() :
     superRoot.makeDirectory("root");
 #endif // MEM_FSM
 
+//    ardb::Server server;
+//    server.Start();
+
+
+#ifdef ARDB_FSM
+    worker_ctx.ClearFlags();
+#endif // ROCKSDB_FSM
+#ifdef ROCKSDB_FSM
+    option.disableWAL = this->disableWAL;
+#endif
+}
+
+Tree::~Tree() {
+    g_repl->Stop();
+    g_repl->Join();
+}
+
+void Tree::Init(std::string& path) {
+
+#ifdef ROCKSDB_FSM
+    rocksdb::Options options;
+    options.create_if_missing = true;
+
+    serverDir = path;
+    fsmDir = serverDir + "/rocksdb-fsm";
+
+    rocksdb::Status status;
+    std::vector<std::string> column_families;
+    status = rocksdb::DB::ListColumnFamilies(options, fsmDir, &column_families);
+    if (column_families.empty()) {
+        status = rocksdb::DB::Open(options, fsmDir, &rdb);
+    } else {
+        std::vector<rocksdb::ColumnFamilyDescriptor> column_families_descs(column_families.size());
+        for (size_t i = 0; i < column_families.size(); i++) {
+            column_families_descs[i] = rocksdb::ColumnFamilyDescriptor(column_families[i],
+            rocksdb::ColumnFamilyOptions(options));
+        }
+
+        std::vector<rocksdb::ColumnFamilyHandle*> handler;
+        status = rocksdb::DB::Open(
+                        options,
+                        fsmDir,
+                        column_families_descs,
+                        &handler,
+                        &rdb);
+
+        for (size_t i = 0; i < handler.size(); i++)
+        {
+            rocksdb::ColumnFamilyHandle* h = handler[i];
+            auto name = column_families_descs[i].name;
+            handlers[name].reset(h);
+            NOTICE("Open column family:%s success.", column_families_descs[i].name.c_str());
+        }
+    }
+
+    if (!status.ok()) {
+        PANIC("Failed to open db:%s. %s", fsmDir.c_str(), status.ToString().c_str());
+    }
+
+    ns.SetInt64(0);
+    if (!status.ok()) {
+        PANIC("Open rocksdb failed %s", status.ToString().c_str());
+    }
+#endif // ROCKSDB_FSM_REAL
+
+#ifdef ARDB_FSM
     if (ardb.Init("ardb.conf") != 0) {
         PANIC("Open ardb failed.");
     }
 
-    worker_ctx.ClearFlags();
+    if (0 != g_repl->Init())
+    {
+        PANIC("Failed to init replication service.");
+    }
+
+#endif // ROCKSDB_FSM
 }
+
+#ifdef ROCKSDB_FSM
+Tree::ColumnFamilyHandlePtr
+Tree::getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const {
+//    VERBOSE("cf name: %s", cfName.c_str());
+//    for (auto i : handlers) {
+//        VERBOSE("handlers: %s %lu", i.first.c_str(), i.second.get());
+//    }
+    auto found = handlers.find(cfName);
+    if (found != handlers.end()) {
+//        VERBOSE("Found cf %s:%lu", cfName.c_str(), handlers[cfName].get());
+        return handlers[cfName];
+    }
+    if (!create_if_noexist) {
+        return NULL;
+    }
+
+    // Create Column Family
+//    rocksdb::Options options;
+//    options.create_if_missing = true;
+    rocksdb::ColumnFamilyOptions cf_options;
+    rocksdb::ColumnFamilyHandle* cfh = NULL;
+    rocksdb::Status s = rdb->CreateColumnFamily(cf_options, cfName, &cfh);
+    if (s.ok()) {
+//        s = rdb->Put(rocksdb::WriteOptions(), cfh, "test1", "value1");
+//        VERBOSE("Put after create column family: %s", s.ToString().c_str());
+//        assert(s.ok());
+
+        handlers[cfName].reset(cfh);
+
+//        s = rdb->Put(rocksdb::WriteOptions(), handlers[cfName].get(), "test1", "value1");
+//        VERBOSE("Put after create column family and reset: %s", s.ToString().c_str());
+//        assert(s.ok());
+
+//        std::vector<std::string> column_families;
+//        s = rocksdb::DB::ListColumnFamilies(rocksdb::Options(), fsmDir, &column_families);
+//        for (auto i : column_families) {
+//            VERBOSE("column %s", i.c_str());
+//        }
+
+        NOTICE("Create Column Family Handle with name:%s succeed %lu",
+            cfName.c_str(), handlers[cfName].get());
+        return handlers[cfName];
+    }
+
+    ERROR("Create Column Family Handle:%s failed:%s", cfName.c_str(), s.ToString().c_str());
+    return NULL;
+}
+#endif
 
 Result
 Tree::normalLookup(const Path& path, Directory** parent)
@@ -436,21 +583,149 @@ Tree::mkdirLookup(const Path& path, Directory** parent)
 }
 
 void
+Tree::findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const {
+    DIR *dir;
+    struct dirent *ent;
+    char latest_snapshot_dir[256];
+    uint32_t latest_timestamp = 0;
+
+    std::string backup_dir = g_db->GetConf().backup_dir;
+    if ((dir = opendir (backup_dir.c_str())) != NULL) {
+        char filename[256];
+        /* print all the files and directories within directory */
+        while ((ent = readdir (dir)) != NULL) {
+            // skip "." and ".."
+            if (strcmp(ent->d_name, ".") == 0)
+                continue;
+            if (strcmp(ent->d_name, "..") == 0)
+                continue;
+
+            snprintf(filename, 255, "%s/%s", backup_dir.c_str(), ent->d_name);
+            // printf ("%s\n", ent->d_name);
+            struct stat t_stat;
+            stat(filename, &t_stat);
+            // found a newer snapshot
+            if (t_stat.st_mtime > latest_timestamp) {
+                latest_timestamp = t_stat.st_mtime;
+                strncpy(latest_snapshot_dir, ent->d_name, 255);
+            }
+        }
+        closedir (dir);
+
+        if (latest_timestamp > 0) {
+            Snapshot::File file;
+            file.set_contents(latest_snapshot_dir);
+            if (stream) {
+                stream->writeMessage(file);
+            } else {
+                printf("Latest snapshot dir: %s\n", latest_snapshot_dir);
+            }
+        }
+    } else {
+        /* could not open directory */
+        perror ("findLatestSnapshot");
+    }
+}
+
+void
 Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 {
 #ifdef FSM_MEM
     superRoot.dumpSnapshot(stream);
 #endif // FSM_MEM
 
-#ifdef ROCKSDB_FSM
-    ardb::codec::ArgumentArray cmdArray;
-    cmdArray.push_back("save");
-    cmdArray.push_back("backup");
-    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
-    ardb::Context ctx;
-    ardb.Call(ctx, redisCommandFrame);
-    NOTICE(ctx.GetReply().GetString().c_str());
+#ifdef ARDB_FSM
+    // findLatestSnapshot(&stream);
+    const ardb::Ardb* pArdb = &ardb;
+    ardb::Ardb* pArdb2 = &ardb;
+#if 1
+    const rocksdb::Snapshot* snapshot =
+            (rocksdb::Snapshot*)(pArdb->GetSnapshot((ardb::Context&)worker_ctx));
+    rocksdb::ReadOptions options;
+    // options.snapshot = snapshot;
+
+    ardb::RocksDBEngine * pEngine = (ardb::RocksDBEngine *)(pArdb2->m_engine);
+    if (pEngine == NULL) {
+        ERROR("engine is null");
+        return;
+    }
+
+    void * p = pEngine->m_db;
+
+//    rocksdb::DB* db = (rocksdb::DB*)(pEngine->GetDB());
+    rocksdb::DB* db = (rocksdb::DB*)p;
+    if (db == NULL) {
+        ERROR("db is null");
+        return;
+    }
+#endif
+    Snapshot::KeyValue kv;
+    kv.set_key("hello");
+    kv.set_value("world");
+    stream.writeMessage(kv);
+
+    int keyDumped = 0;
+    if (ardb::g_rocksdb) {
+//        pEngine->Put((ardb::Context &)worker_ctx, "a", "b");
+
+//        ardb::g_rocksdb->Put(rocksdb::WriteOptions(), "a", "b");
+        ardb::codec::ArgumentArray cmdArray;
+        cmdArray.push_back("set");
+        cmdArray.push_back("a");
+        cmdArray.push_back("b");
+        ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+        pArdb2->Call((Context&)worker_ctx, redisCommandFrame);
+
+        // rocksdb::Iterator* it= db->NewIterator(options);
+//        auto it = ardb::g_rocksdb->NewIterator(rocksdb::ReadOptions());
+        auto it = db->NewIterator(rocksdb::ReadOptions());
+        for (it->SeekToFirst(); it->Valid(); it->Next()) {
+            // cout << it->key().ToString() << ": " << it->value().ToString() << endl;
+            Snapshot::KeyValue kv;
+            kv.set_key(it->key().ToString());
+            kv.set_value(it->value().ToString());
+            stream.writeMessage(kv);
+            NOTICE("key %s value %s", it->key().ToString().c_str(), it->value().ToString().c_str());
+
+            keyDumped++;
+        }
+        assert(it->status().ok()); // Check for any errors found during the scan
+        delete it;
+    }
+//    pArdb->ReleaseSnapshot((ardb::Context&)worker_ctx);
+    NOTICE("key dumped: %d", keyDumped);
 #endif // ROCKSDB_FSM
+#ifdef ROCKSDB_FSM
+    try {
+        ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+        rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+        if (NULL == pcf) {
+            PANIC("Get cf failed");
+        }
+
+        int keyDumped = 0;
+        rocksdb::ReadOptions readOptions = rocksdb::ReadOptions();
+        readOptions.snapshot = snapshot;
+        auto it = rdb->NewIterator(readOptions, pcf);
+        for (it->SeekToFirst(); it->Valid(); it->Next()) {
+            VERBOSE("iter: key %s value %s",
+                    it->key().ToString().c_str(),
+                    it->value().ToString().c_str());
+//        std::cout << "key: " << it->key().ToString() << " value: " << it->value().ToString() << std::endl;
+            Snapshot::KeyValue kv;
+            kv.set_key(it->key().ToString());
+            kv.set_value(it->value().ToString());
+            stream.writeMessage(kv);
+
+            keyDumped++;
+        }
+        delete it;
+        NOTICE("key dumped: %d", keyDumped);
+    } catch (Exception e) {
+        ERROR("Tree dump snapshot failed: %s", e.GetCause().c_str());
+        rdb->ReleaseSnapshot(snapshot);
+    };
+#endif // ROCKDB_FSM_REAL
 }
 
 /**
@@ -463,8 +738,59 @@ Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     superRoot = Directory();
     superRoot.loadSnapshot(stream);
 #endif // FSM_MEM
+#ifdef ARDB_FSM
+    Snapshot::File node;
+    std::string error = stream.readMessage(node);
+    if (!error.empty()) {
+        PANIC("Couldn't read snapshot: %s", error.c_str());
+    }
+    std::string latest_snapshot_dir = node.contents();
+    std::string backup_dir = g_db->GetConf().backup_dir;
+
+    Result result;
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("import");
+    cmdArray.push_back(backup_dir + "/" + latest_snapshot_dir);
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb.Call((ardb::Context&)worker_ctx, redisCommandFrame);
+//    NOTICE(worker_ctx.GetReply().GetString().c_str());
+    NOTICE("import backup status: %s", worker_ctx.GetReply().Status().c_str());
+#endif // ROCKSDB_FSM
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+    rocksdb::Status status = rdb->DropColumnFamily(pcf);
+    if (!status.ok()) {
+        PANIC("Drop default column family failed: %s", status.ToString().c_str());
+    }
+    Snapshot::KeyValue kv;
+    std::string error = stream.readMessage(kv);
+    while(error.empty()) {
+        VERBOSE("load key %s value %s", kv.key().c_str(), kv.value().c_str());
+        rdb->Put(option, pcf, kv.key(), kv.value());
+        error = stream.readMessage(kv);
+    }
+    NOTICE("Load snapshot succeed.");
+
+    Reopen();
+
+#endif
 }
 
+void Tree::Reopen() {
+    for (auto handle = handlers.begin();
+         handle != handlers.end();
+         handle++
+    ) {
+        handlers.erase(handle);
+    }
+    delete rdb;
+
+    Init(serverDir);
+}
 
 Result
 Tree::checkCondition(const std::string& path,
@@ -517,9 +843,19 @@ Tree::makeDirectory(const std::string& symbolicPath)
                               path.symbolic.c_str());
         return result;
     }
-#else
-    Result result;
 #endif // MEM_FSM
+
+#ifdef ROCKSDB_FSM
+    Result result;
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string key = symbolicPath + ":meta";
+    rdb->Put(option, pcf, key, "dir");
+#endif // ROCKSDB_FSM_REAL
     ++numMakeDirectorySuccess;
     return result;
 }
@@ -529,6 +865,7 @@ Tree::listDirectory(const std::string& symbolicPath,
                     std::vector<std::string>& children) const
 {
     ++numListDirectoryAttempted;
+    Result result;
 #ifdef MEM_FSM
     children.clear();
     Path path(symbolicPath);
@@ -552,9 +889,22 @@ Tree::listDirectory(const std::string& symbolicPath,
         return result;
     }
     children = targetDir->getChildren();
-#else
-    Result result;
 #endif // MEM_FSM
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string prefix = symbolicPath;
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+        VERBOSE("iter: %s", iter->key().ToString().c_str());
+        children.emplace_back(iter->key().ToString().substr(1));
+    }
+    delete iter;
+#endif // ROCKSDB_FSM_REAL
     ++numListDirectorySuccess;
     return result;
 }
@@ -609,6 +959,7 @@ Result
 Tree::write(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
+    Result result;
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -648,8 +999,7 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
     }
 #endif // MEM_FSM
 
-#ifdef ROCKSDB_FSM
-    Result result;
+#ifdef ARDB_FSM
     ardb::codec::ArgumentArray cmdArray;
     cmdArray.push_back("lpush");
     cmdArray.push_back(symbolicPath);
@@ -658,6 +1008,50 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
     ardb.Call(worker_ctx, redisCommandFrame);
 #endif // ROCKSDB_FSM
 
+#ifdef ROCKSDB_FSM
+//    rocksdb::Status status;
+//    std::vector<std::string> column_families;
+//    rocksdb::Options options;
+//    options.create_if_missing = true;
+//    status = rocksdb::DB::ListColumnFamilies(options, fsmDir, &column_families);
+//    for (auto i : column_families) {
+//        VERBOSE("column %s", i.c_str());
+//    }
+    if (symbolicPath == "") {
+        result.status = Status::INVALID_ARGUMENT;
+        return result;
+    }
+
+    if (symbolicPath == "/") {
+        // write to a directory, return TYPE_ERROR
+        result.status = Status::TYPE_ERROR;
+        return result;
+    }
+
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    rocksdb::Status s;
+    std::string meta;
+    s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath + ":meta", &meta);
+    if (s.ok() && meta == "dir") {
+        result.status = Status::TYPE_ERROR;
+        result.error = symbolicPath + " is a directory";
+        return result;
+    }
+//    status = rocksdb::DB::ListColumnFamilies(options, fsmDir, &column_families);
+//    for (auto i : column_families) {
+//        VERBOSE("column %s", i.c_str());
+//    }
+
+    s = rdb->Put(option, pcf, symbolicPath, contents);
+    if (!s.ok()) {
+        PANIC("rocksdb put failed: %s", s.ToString().c_str());
+    }
+#endif // ROCKSDB_FSM_REAL
     ++numWriteSuccess;
     return result;
 }
@@ -666,7 +1060,7 @@ Result
 Tree::sadd(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
-
+    Result result;
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -690,7 +1084,7 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
     }
 #endif // MEM_FSM
 
-#ifdef ROCKSDB_FSM
+#ifdef ARDB_FSM
     Result result;
     size_t pos = contents.find('-');
     if (pos >= 0) {
@@ -719,6 +1113,20 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
     }
 #endif // ROCKSDB_FSM
 
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string key = symbolicPath + ":meta";
+    rdb->Put(option, pcf, key, "set");
+
+    key = symbolicPath + ":set:" + contents;
+    rdb->Put(option, pcf, key, "set_mem");
+#endif // ROCKSDB_FSM_REAL
+
     ++numWriteSuccess;
     return result;
 }
@@ -727,6 +1135,7 @@ Result
 Tree::srem(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
+    Result result;
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -749,7 +1158,7 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
     }
 #endif // MEM_FSM
 
-#ifdef ROCKSDB_FSM
+#ifdef ARDB_FSM
     Result result;
     ardb::codec::ArgumentArray cmdArray;
     cmdArray.push_back("srem");
@@ -759,6 +1168,19 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
     ardb.Call(worker_ctx, redisCommandFrame);
 #endif // ROCKSDB_FSM
 
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+//    std::string key = symbolicPath + ":meta";
+//    rdb->Put(option, key, "set");
+
+    std::string key = symbolicPath + ":set:" + contents;
+    rdb->Delete(option, pcf, key);
+#endif // ROCKSDB_FSM_REAL
+
     ++numWriteSuccess;
     return result;
 }
@@ -767,6 +1189,7 @@ Result
 Tree::pub(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
+    Result result;
 #ifdef MEM_FSM
     Path pathTopic2(symbolicPath);
     if (pathTopic2.result.status != Status::OK)
@@ -819,7 +1242,7 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
     }
 #endif // MEM_FSM
 
-#ifdef ROCKSDB_FSM
+#ifdef ARDB_FSM
     Result result;
     // read uids from tfs
     ardb::codec::ArgumentArray cmdArray;
@@ -858,7 +1281,7 @@ Result
 Tree::read(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
-    contents.clear();
+    Result result;
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -902,8 +1325,7 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
     // contents.at(contents.length() - 1) = ">";
 #endif // MEM_FSM
 
-#ifdef ROCKSDB_FSM
-    Result result;
+#ifdef ARDB_FSM
     ardb::codec::ArgumentArray cmdArray;
     cmdArray.push_back("smembers");
     cmdArray.push_back(symbolicPath);
@@ -934,7 +1356,45 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
             contents += r.elements->at(i)->GetString() + ",";
         }
     }
+
+    cmdArray.clear();
+    cmdArray.push_back("get");
+    cmdArray.push_back("__lastAppliedIndex");
+    ardb::codec::RedisCommandFrame redisCommandFrameGet(cmdArray);
+    ardb.Call(ctx, redisCommandFrameGet);
+    r = ctx.GetReply();
+    contents += "\n\n" + r.GetString();
+
 #endif // ROCKSDB_FSM
+
+#ifdef ROCKSDB_FSM
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    /*
+    for (auto p : path.parents) {
+        std::cout << "path: " << p << std::endl;
+    }
+     */
+
+    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &contents);
+//    VERBOSE("rocksdb get %s", s.ToString().c_str());
+
+    std::string prefix = symbolicPath + ":set:";
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+//        VERBOSE("iter: %s", iter->key().ToString().c_str());
+        contents += iter->key().ToString().substr(prefix.length()) + ",";
+    }
+    delete iter;
+#endif // ROCKSDB_FSM_REAL
 
     ++numReadSuccess;
     return result;
@@ -1065,6 +1525,45 @@ Tree::updateServerStats(Protocol::ServerStats::Tree& tstats) const
         numRemoveFileDone);
     tstats.set_num_remove_file_success(
         numRemoveFileSuccess);
+}
+
+void Tree::startSnapshot(uint64_t lastIncludedIndex) {
+#ifdef ARDB_FSM
+    int ret = ardb.Snapshot(worker_ctx);
+    VERBOSE("ret = %d", ret);
+#endif // ROCKSDB_FSM
+#if 0
+    ardb::codec::ArgumentArray cmdArray;
+    cmdArray.push_back("set");
+    cmdArray.push_back("__lastAppliedIndex");
+    std::stringstream ss;
+    ss << lastIncludedIndex;
+    cmdArray.push_back(ss.str());
+    ardb::codec::RedisCommandFrame redisCommandFrameSet(cmdArray);
+    ardb.Call((ardb::Context&) worker_ctx, redisCommandFrameSet);
+    NOTICE("set __lastAppliedIndex: %llu", lastIncludedIndex);
+
+    cmdArray.clear();
+    cmdArray.push_back("save");
+    cmdArray.push_back("backup");
+    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
+    ardb.Call((ardb::Context&)worker_ctx, redisCommandFrame);
+//    NOTICE(worker_ctx.GetReply().GetString().c_str());
+    NOTICE("save backup status: %s", worker_ctx.GetReply().Status().c_str());
+#endif
+#ifdef ROCKSDB_FSM
+    snapshot = (rocksdb::Snapshot*)(rdb->GetSnapshot());
+    if (snapshot == NULL) {
+        PANIC("Get Snapshot failed");
+    }
+
+//    rocksdb::Status status = rocksdb::Checkpoint::Create(rdb, &checkpoint);
+//    if (!status.ok()) {
+//        PANIC("Create checkpoint failed: %s", status.ToString().c_str());
+//    }
+//    std::string checkpoint_dir = serverDir + "/checkpoint";
+//    checkpoint->CreateCheckpoint(checkpoint_dir);
+#endif
 }
 
 } // namespace LogCabin::Tree

@@ -202,6 +202,7 @@ env.Append(CPPPATH = '#/ardb/src/common')
 env.Append(CPPPATH = '#/ardb/deps/cpp-btree')
 env.Append(CPPPATH = '#/ardb/deps/lua/src')
 env.Append(CPPPATH = '#/ardb/deps/sparsehash-sparsehash-2.0.3/src')
+env.Append(CPPPATH = '#/ardb/deps/rocksdb-5.2.1/include')
 
 # Define protocol buffers builder to simplify SConstruct files
 def Protobuf(env, source):
@@ -272,6 +273,9 @@ libsnappy = File('/usr/lib/libsnappy.a')
 libjemalloc = File('#/ardb/deps/jemalloc-4.4.0/lib/libjemalloc.a')
 librocksdb = File('#/ardb/deps/rocksdb-5.2.1/librocksdb.a')
 libardb = File('#/ardb/src/libardb.a')
+liblz4 = File('/usr/lib/x86_64-linux-gnu/liblz4.a')
+libbz2 = File('/usr/lib/x86_64-linux-gnu/libbz2.a')
+libsnappy = File('/usr/lib/libsnappy.a')
 
 daemon = env.Program("build/LogCabin",
             (["build/Server/Main.cc"] +
@@ -283,7 +287,7 @@ daemon = env.Program("build/LogCabin",
              object_files['RPC'] +
              object_files['Event'] +
              object_files['Core']),
-            LIBS = [ "pthread", libprotobuf, "rt", libardb, librocksdb, liblua, libcryptopp, libjemalloc, "lz4", "z", "bz2", "snappy"])
+            LIBS = [ "pthread", libprotobuf, "rt", libardb, librocksdb, liblua, libcryptopp, libjemalloc, liblz4, "z", libbz2, libsnappy])
 env.Default(daemon)
 
 storageTool = env.Program("build/Storage/Tool",

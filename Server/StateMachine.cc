@@ -92,6 +92,8 @@ StateMachine::StateMachine(std::shared_ptr<RaftConsensus> consensus,
     , snapshotThread()
     , snapshotWatchdogThread()
 {
+//    tree.setRaft(consensus.get());
+    tree.Init(consensus->storageLayout.serverDir.path);
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
                                                 MAX_SUPPORTED_VERSION);
@@ -730,6 +732,8 @@ StateMachine::takeSnapshot(uint64_t lastIncludedIndex,
 
     ++numSnapshotsAttempted;
     snapshotStarted.notify_all();
+
+    tree.startSnapshot(lastIncludedIndex);
 
     pid_t pid = fork();
     if (pid == -1) { // error

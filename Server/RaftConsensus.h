@@ -1465,7 +1465,7 @@ class RaftConsensus {
      */
     std::string serverAddresses;
 
-  private:
+  public:
 
     /**
      * The LogCabin daemon's top-level objects.

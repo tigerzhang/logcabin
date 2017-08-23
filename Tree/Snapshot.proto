@@ -44,3 +44,7 @@ message ISet {
     repeated uint64 items = 1;
 }
 
+message KeyValue {
+    required string key = 1;
+    required string value = 2;
+}

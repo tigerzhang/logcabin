@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 #include <stdexcept>
 #include <sys/stat.h>
+#include <fstream>
 
 #include "Core/StringUtil.h"
 #include "Tree/Tree.h"
@@ -35,6 +36,71 @@ using namespace Internal; // NOLINT
     Result result = (c); \
     EXPECT_EQ(Status::OK, result.status) << result.error; \
 } while (0)
+
+#if 0
+const char* ardb_conf =
+        "home  data/server1/fsm-ardb"
+                "daemonize no"
+                "pidfile ${ARDB_HOME}/ardb.pid"
+                "thread-pool-size              4"
+                "server[0].listen              0.0.0.0:16379"
+                "qps-limit-per-host                  0"
+                "qps-limit-per-connection            0"
+                "rocksdb.compaction           OptimizeLevelStyleCompaction"
+                "rocksdb.scan-total-order              false"
+                "rocksdb.disableWAL            true"
+                "rocksdb.options               write_buffer_size=512M;max_write_buffer_number=5;min_write_buffer_number_to_merge=3;compression=kSnappyCompression;\"
+                "                              bloom_locality=1;memtable_prefix_bloom_size_ratio=0.1;\"
+                "                              block_based_table_factory={block_cache=512M;filter_policy=bloomfilter:10:true};\"
+                "                              create_if_missing=true;max_open_files=10000;rate_limiter_bytes_per_sec=50M"
+                "leveldb.options               block_cache_size=512M,write_buffer_size=128M,max_open_files=5000,block_size=4k,block_restart_interval=16,\"
+                "                              bloom_bits=10,compression=snappy,logenable=yes"
+                ""
+                "lmdb.options                  database_maxsize=10G,database_maxdbs=4096,readahead=no,batch_commit_watermark=1024"
+                "perconaft.options              cache_size=128M,compression=snappy"
+                "wiredtiger.options            cache_size=512M,session_max=8k,chunk_size=100M,block_size=4k,bloom_bits=10,\"
+                "                              mmap=false,compressor=snappy"
+                ""
+                "forestdb.options              chunksize=8,blocksize=4K"
+                "timeout 0"
+                "tcp-keepalive 0"
+                "loglevel info"
+                "logfile  stdout"
+                "data-dir ${ARDB_HOME}/data"
+                "slave-workers   2"
+                "max-slave-worker-queue  1024"
+                "repl-dir                          ${ARDB_HOME}/repl"
+                "slave-serve-stale-data yes"
+                "slave-priority 100"
+                "slave-read-only yes"
+                "backup-dir                        ${ARDB_HOME}/backup"
+                "backup-file-format                ardb"
+                "repl-disable-tcp-nodelay no"
+                "repl-backlog-size           1G"
+                "repl-backlog-cache-size     100M"
+                "snapshot-max-lag-offset     500M"
+                "maxsnapshots                10"
+                "slave-serve-stale-data yes"
+                "slave-cleardb-before-fullresync    yes"
+                "repl-backlog-sync-period         5"
+                "slave-ignore-expire   no"
+                "slave-ignore-del      no"
+                "cluster-name   ardb-cluster"
+                "slave-client-output-buffer-limit 256mb"
+                "pubsub-client-output-buffer-limit 32mb"
+                "slowlog-log-slower-than 10000"
+                "slowlog-max-len 128"
+                "lua-time-limit 5000"
+                "hll-sparse-max-bytes 3000"
+                "compact-after-snapshot-load  false"
+                "scan-redis-compatible         yes"
+                "scan-cursor-expire-after      60"
+                "redis-compatible-mode     no"
+                "redis-compatible-version  2.8.0"
+                "statistics-log-period     600"
+                "range-delete-min-size  100"
+;
+#endif
 
 void
 dumpTreeHelper(const Tree& tree,
@@ -88,6 +154,12 @@ TEST(TreeFileTest, dumpSnapshot)
         EXPECT_EQ("hello, world!", f.contents);
     }
 }
+
+//TEST(TreeFileTest, findLatestSnapshot)
+//{
+//    Tree tree;
+//    tree.findLatestSnapshot(NULL);
+//}
 
 TEST(TreeDirectoryTest, getChildren)
 {
@@ -204,7 +276,11 @@ TEST(TreeDirectoryTest, removeFile)
 
 TEST(TreeDirectoryTest, dumpSnapshot)
 {
+    Storage::Layout layout;
+    layout.initTemporary();
+
     Tree tree;
+    tree.Init(layout.topDir.path);
     tree.makeDirectory("/a");
     tree.makeDirectory("/a/b");
     tree.makeDirectory("/a/b/c");
@@ -214,8 +290,6 @@ TEST(TreeDirectoryTest, dumpSnapshot)
     tree.makeDirectory("/f/h");
     tree.write("/f/g", "rawr");
 
-    Storage::Layout layout;
-    layout.initTemporary();
     {
 #ifdef MEM_FSM
         Storage::SnapshotFile::Writer writer(layout);
@@ -275,32 +349,107 @@ TEST(TreePathTest, parentsThrough)
     EXPECT_EQ("/a/b/c", path.parentsThrough(it));
 }
 
+const std::string ardb_conf =
+        "home  data\n"
+                "daemonize no\n"
+                "pidfile ${ARDB_HOME}/ardb.pid\n"
+                "thread-pool-size              4\n"
+                "server[0].listen              0.0.0.0:16379\n"
+                "qps-limit-per-host                  0\n"
+                "qps-limit-per-connection            0\n"
+                "rocksdb.compaction           OptimizeLevelStyleCompaction\n"
+                "rocksdb.scan-total-order              false\n"
+                "rocksdb.disableWAL            false\n"
+                "rocksdb.options               write_buffer_size=512M;max_write_buffer_number=5;min_write_buffer_number_to_merge=3;compression=kSnappyCompression;\\\n"
+                "bloom_locality=1;memtable_prefix_bloom_size_ratio=0.1;\\\n"
+                "block_based_table_factory={block_cache=512M;filter_policy=bloomfilter:10:true};\\\n"
+                "create_if_missing=true;max_open_files=10000;rate_limiter_bytes_per_sec=50M\n"
+                "leveldb.options               block_cache_size=512M,write_buffer_size=128M,max_open_files=5000,block_size=4k,block_restart_interval=16,\\\n"
+                "bloom_bits=10,compression=snappy,logenable=yes\n"
+                "\n"
+                "lmdb.options                  database_maxsize=10G,database_maxdbs=4096,readahead=no,batch_commit_watermark=1024\n"
+                "perconaft.options              cache_size=128M,compression=snappy\n"
+                "wiredtiger.options            cache_size=512M,session_max=8k,chunk_size=100M,block_size=4k,bloom_bits=10,\\\n"
+                "mmap=false,compressor=snappy\n"
+                "\n"
+                "forestdb.options              chunksize=8,blocksize=4K\n"
+                "timeout 0\n"
+                "tcp-keepalive 0\n"
+                "loglevel info\n"
+                "logfile  /tmp/ardb.log\n"
+                "data-dir ${ARDB_HOME}/data\n"
+                "slave-workers   2\n"
+                "max-slave-worker-queue  1024\n"
+                "repl-dir                          ${ARDB_HOME}/repl\n"
+                "slave-serve-stale-data yes\n"
+                "slave-priority 100\n"
+                "slave-read-only yes\n"
+                "backup-dir                        ${ARDB_HOME}/backup\n"
+                "backup-file-format                ardb\n"
+                "repl-disable-tcp-nodelay no\n"
+                "repl-backlog-size           1G\n"
+                "repl-backlog-cache-size     100M\n"
+                "snapshot-max-lag-offset     500M\n"
+                "maxsnapshots                10\n"
+                "slave-serve-stale-data yes\n"
+                "slave-cleardb-before-fullresync    yes\n"
+                "repl-backlog-sync-period         5\n"
+                "slave-ignore-expire   no\n"
+                "slave-ignore-del      no\n"
+                "cluster-name   ardb-cluster\n"
+                "slave-client-output-buffer-limit 256mb\n"
+                "pubsub-client-output-buffer-limit 32mb\n"
+                "slowlog-log-slower-than 10000\n"
+                "slowlog-max-len 128\n"
+                "lua-time-limit 5000\n"
+                "hll-sparse-max-bytes 3000\n"
+                "compact-after-snapshot-load  false\n"
+                "scan-redis-compatible         yes\n"
+                "scan-cursor-expire-after      60\n"
+                "redis-compatible-mode     no\n"
+                "redis-compatible-version  2.8.0\n"
+                "statistics-log-period     600\n"
+                "range-delete-min-size  100\n"
+;
+
 class TreeTreeTest : public ::testing::Test {
     TreeTreeTest()
-        : tree()
+        : tree(), layout()
     {
+        layout.initTemporary();
+        tree.Init(layout.topDir.path);
+
         EXPECT_EQ("/", dumpTree(tree));
+
+        std::ofstream myfile;
+        myfile.open (layout.topDir.path + "/ardb.conf");
+        myfile << ardb_conf;
+        myfile.close();
+
     }
 
+    Storage::Layout layout;
     Tree tree;
 };
 
 TEST_F(TreeTreeTest, dumpSnapshot)
 {
-    Storage::Layout layout;
-    layout.initTemporary();
     {
         Storage::SnapshotFile::Writer writer(layout);
+
+//        tree.startSnapshot(0);
         tree.write("/c", "foo");
         tree.dumpSnapshot(writer);
         writer.save();
     }
+    /*
     tree.removeFile("/c");
     tree.write("/d", "bar");
     {
         Storage::SnapshotFile::Reader reader(layout);
         tree.loadSnapshot(reader);
     }
+     */
     std::vector<std::string> children;
     EXPECT_OK(tree.listDirectory("/", children));
     EXPECT_EQ((std::vector<std::string>{ "c" }), children);

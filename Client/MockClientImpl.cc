@@ -56,6 +56,9 @@ class TreeLeaderRPC : public LeaderRPCBase {
         , callbacks(callbacks)
         , tree()
     {
+        char d[] = "/tmp/logcabinXXXXXX";
+        std::string path(::mkdtemp(d));
+        tree.Init(path);
     }
     Status call(OpCode opCode,
               const google::protobuf::Message& request,

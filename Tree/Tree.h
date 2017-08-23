@@ -26,9 +26,14 @@
 #include <statistics.hpp>
 #include <util/file_helper.hpp>
 
+#include <rocksdb/db.h>
+#include <rocksdb/utilities/checkpoint.h>
+#include <Server/Globals.h>
+
 #ifndef LOGCABIN_TREE_TREE_H
 #define LOGCABIN_TREE_TREE_H
 
+//#define ARDB_FSM
 #define ROCKSDB_FSM
 
 namespace LogCabin {
@@ -310,10 +315,17 @@ class Tree {
      */
     Tree();
 
+    ~Tree();
+
+    void Init(std::string& path);
+
+    void findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const;
     /**
      * Write the tree to the given stream.
      */
     void dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const;
+
+    void startSnapshot(uint64_t lastIncludedIndex);
 
     /**
      * Load the tree from the given stream.
@@ -459,7 +471,13 @@ class Tree {
     void
     updateServerStats(Protocol::ServerStats_Tree& tstats) const;
 
-  private:
+#ifdef ROCKSDB_FSM
+    void setRaft(LogCabin::Server::RaftConsensus* raft) {
+        this->raft= raft;
+    }
+#endif // ROCKSDB_FSM_REAL
+
+private:
     /**
      * Resolve the final next-to-last component of the given path (the target's
      * parent).
@@ -537,9 +555,28 @@ class Tree {
     uint64_t numRemoveFileSuccess;
 
 #ifdef ROCKSDB_FSM
+    typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;
+    typedef std::map<std::string, ColumnFamilyHandlePtr> ColumnFamilyHandleTable;
+
+    LogCabin::Server::RaftConsensus* raft;
+    rocksdb::DB* rdb;
+    ardb::Data ns;
+    rocksdb::Checkpoint* checkpoint;
+    rocksdb::Snapshot* snapshot;
+    bool disableWAL;
+    rocksdb::WriteOptions option;
+    std::string serverDir;
+    std::string fsmDir;
+    ColumnFamilyHandleTable handlers;
+    ColumnFamilyHandlePtr getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const;
+#endif // ROCKSDB_FSM_REAL
+
+#ifdef ARDB_FSM
     ardb::Ardb ardb;
     ardb::Context worker_ctx;
 #endif // ROCKSDB_FSM
+
+    void Reopen();
 };
 
 
