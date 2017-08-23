@@ -385,7 +385,7 @@ Tree::Tree() :
     , checkpoint(NULL)
     , snapshot(NULL)
     , disableWAL(true)
-    , option(std::move(rocksdb::WriteOptions()))
+    , writeOptions(std::move(rocksdb::WriteOptions()))
 //    , cf(NULL)
 #endif // ROCKSDB_FSM_REAL
 {
@@ -403,7 +403,7 @@ Tree::Tree() :
     worker_ctx.ClearFlags();
 #endif // ROCKSDB_FSM
 #ifdef ROCKSDB_FSM
-    option.disableWAL = this->disableWAL;
+    writeOptions.disableWAL = this->disableWAL;
 #endif
 }
 
@@ -770,7 +770,7 @@ Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     std::string error = stream.readMessage(kv);
     while(error.empty()) {
         VERBOSE("load key %s value %s", kv.key().c_str(), kv.value().c_str());
-        rdb->Put(option, pcf, kv.key(), kv.value());
+        rdb->Put(writeOptions, pcf, kv.key(), kv.value());
         error = stream.readMessage(kv);
     }
     NOTICE("Load snapshot succeed.");
@@ -854,7 +854,7 @@ Tree::makeDirectory(const std::string& symbolicPath)
     }
 
     std::string key = symbolicPath + ":meta";
-    rdb->Put(option, pcf, key, "dir");
+    rdb->Put(writeOptions, pcf, key, "dir");
 #endif // ROCKSDB_FSM_REAL
     ++numMakeDirectorySuccess;
     return result;
@@ -1047,7 +1047,7 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
 //        VERBOSE("column %s", i.c_str());
 //    }
 
-    s = rdb->Put(option, pcf, symbolicPath, contents);
+    s = rdb->Put(writeOptions, pcf, symbolicPath, contents);
     if (!s.ok()) {
         PANIC("rocksdb put failed: %s", s.ToString().c_str());
     }
@@ -1121,10 +1121,10 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
     }
 
     std::string key = symbolicPath + ":meta";
-    rdb->Put(option, pcf, key, "set");
+    rdb->Put(writeOptions, pcf, key, "s");
 
-    key = symbolicPath + ":set:" + contents;
-    rdb->Put(option, pcf, key, "set_mem");
+    key = symbolicPath + ":s:" + contents;
+    rdb->Put(writeOptions, pcf, key, "s");
 #endif // ROCKSDB_FSM_REAL
 
     ++numWriteSuccess;
@@ -1175,10 +1175,10 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
         PANIC("Get cf failed");
     }
 //    std::string key = symbolicPath + ":meta";
-//    rdb->Put(option, key, "set");
+//    rdb->Put(writeOptions, key, "set");
 
-    std::string key = symbolicPath + ":set:" + contents;
-    rdb->Delete(option, pcf, key);
+    std::string key = symbolicPath + ":s:" + contents;
+    rdb->Delete(writeOptions, pcf, key);
 #endif // ROCKSDB_FSM_REAL
 
     ++numWriteSuccess;
@@ -1272,6 +1272,43 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
         }
     }
 #endif // ROCKSDB_FSM
+
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string meta;
+    rocksdb::Status s;
+    uint64_t index = 0;
+    std::string keyMeta = symbolicPath + ":meta";
+
+    auto it = listIndexes.find(symbolicPath);
+    if (it != listIndexes.end()) {
+        index = it->second;
+    } else {
+        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
+        if (s.ok()) {
+            assert(meta.substr(0, 1) == "l");
+            std::string indexStored = meta.substr(1);
+            index = atoll(indexStored.c_str());
+            listIndexes[symbolicPath] = index;
+        }
+    }
+
+
+    char indexStr[8];
+    snprintf(indexStr, 8, "%07lu", index);
+    std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
+    listIndexes[symbolicPath] = index + 1;
+
+    rdb->Put(writeOptions, pcf, keyElement, contents);
+
+    snprintf(indexStr, 8, "%lu", index+1);
+    rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
+#endif
 
     ++numWriteSuccess;
     return result;
@@ -1387,11 +1424,18 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
     rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &contents);
 //    VERBOSE("rocksdb get %s", s.ToString().c_str());
 
-    std::string prefix = symbolicPath + ":set:";
+    std::string prefix = symbolicPath + ":s:";
     auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
     for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
 //        VERBOSE("iter: %s", iter->key().ToString().c_str());
         contents += iter->key().ToString().substr(prefix.length()) + ",";
+    }
+    delete iter;
+
+    prefix = symbolicPath + ":l:";
+    iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+        contents += iter->key().ToString() + ":" + iter->value().ToString() + ",";
     }
     delete iter;
 #endif // ROCKSDB_FSM_REAL

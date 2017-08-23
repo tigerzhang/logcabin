@@ -564,11 +564,13 @@ private:
     rocksdb::Checkpoint* checkpoint;
     rocksdb::Snapshot* snapshot;
     bool disableWAL;
-    rocksdb::WriteOptions option;
+    rocksdb::WriteOptions writeOptions;
+    rocksdb::ReadOptions readOptions;
     std::string serverDir;
     std::string fsmDir;
     ColumnFamilyHandleTable handlers;
     ColumnFamilyHandlePtr getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const;
+    std::map<std::string, uint64_t> listIndexes;
 #endif // ROCKSDB_FSM_REAL
 
 #ifdef ARDB_FSM
