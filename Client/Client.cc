@@ -470,6 +470,59 @@ Tree::sremEx(const std::string& path, const std::string& contents)
 }
 
 void
+Tree::rpushEx(const std::string& path, const std::string& contents)
+{
+    throwException(rpush(path, contents), treeDetails->timeoutNanos);
+}
+
+Result
+Tree::rpush(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->rpush(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+void
+Tree::lpopEx(const std::string& path, const std::string& contents)
+{
+    throwException(lpop(path, contents), treeDetails->timeoutNanos);
+}
+
+Result
+Tree::lpop(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->lpop(
+            path,
+            treeDetails->workingDirectory,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+void
+Tree::lremEx(const std::string& path, const std::string& contents)
+{
+    throwException(lrem(path, contents), treeDetails->timeoutNanos);
+}
+
+Result
+Tree::lrem(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->lrem(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+void
 Tree::pubEx(const std::string& path, const std::string& contents)
 {
     throwException(pub(path, contents), treeDetails->timeoutNanos);

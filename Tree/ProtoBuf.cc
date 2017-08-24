@@ -64,12 +64,22 @@ readWriteTreeRPC(Tree& tree,
                  PC::ReadWriteTree::Response& response)
 {
     Result result;
+    std::string contents;
     if (request.has_condition()) {
         result = tree.checkCondition(request.condition().path(),
                                      request.condition().contents());
     }
     if (result.status != Status::OK) {
         // condition does not match, skip
+    } else if (request.has_rpush()) {
+        result = tree.rpush(request.rpush().path(),
+                            request.rpush().contents());
+    } else if (request.has_lpop()) {
+        result = tree.lpop(request.lpop().path(), contents);
+        response.set_error(contents);
+    } else if (request.has_lrem()) {
+        result = tree.lrem(request.lrem().path(),
+                           request.lrem().contents());
     } else if (request.has_make_directory()) {
         result = tree.makeDirectory(request.make_directory().path());
     } else if (request.has_remove_directory()) {
@@ -87,7 +97,7 @@ readWriteTreeRPC(Tree& tree,
                            request.srem().contents());
     } else if (request.has_pub()) {
         result = tree.pub(request.pub().path(),
-        request.pub().contents());
+                          request.pub().contents());
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

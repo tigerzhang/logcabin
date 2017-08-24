@@ -375,6 +375,12 @@ Tree::Tree() :
     , numRemoveFileTargetNotFound(0)
     , numRemoveFileDone(0)
     , numRemoveFileSuccess(0)
+    , numRPushAttempted(0)
+    , numRPushSuccess(0)
+    , numLPopAttempted(0)
+    , numLPopSuccess(0)
+    , numLRemAttempted(0)
+    , numLRemSuccess(0)
 #ifdef ARDB_FSM
     , ardb()
     , worker_ctx()
@@ -1311,6 +1317,103 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
 #endif
 
     ++numWriteSuccess;
+    return result;
+}
+
+Result
+Tree::rpush(const std::string &symbolicPath, const std::string &contents) {
+    ++numRPushAttempted;
+    Result result;
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string meta;
+    rocksdb::Status s;
+    uint64_t index = 0;
+    std::string keyMeta = symbolicPath + ":meta";
+
+    auto it = listIndexes.find(symbolicPath);
+    if (it != listIndexes.end()) {
+        index = it->second;
+    } else {
+        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
+        if (s.ok()) {
+            assert(meta.substr(0, 1) == "l");
+            std::string indexStored = meta.substr(1);
+            index = atoll(indexStored.c_str());
+            listIndexes[symbolicPath] = index;
+        }
+    }
+
+
+    char indexStr[8];
+    snprintf(indexStr, 8, "%07lu", index);
+    std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
+    listIndexes[symbolicPath] = index + 1;
+
+    rdb->Put(writeOptions, pcf, keyElement, contents);
+
+    snprintf(indexStr, 8, "%lu", index+1);
+    rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
+#endif
+    ++numRPushSuccess;
+    return result;
+}
+
+Result
+Tree::lpop(const std::string& symbolicPath, std::string& contents) {
+    ++numLPopAttempted;
+    Result result;
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    result.status = Status::LIST_EMPTY;
+    std::string prefix = symbolicPath + ":l:";
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    iter->Seek(prefix);
+    if (iter->Valid() && iter->key().starts_with(prefix)) {
+        result.status = Status::OK;
+        contents = iter->value().ToString();
+        rdb->Delete(writeOptions, pcf, iter->key());
+    }
+    delete iter;
+#endif
+    ++numLPopSuccess;
+    return result;
+}
+
+Result
+Tree::lrem(const std::string& symbolicPath, const std::string &contents) {
+    ++numLRemAttempted;
+    Result result;
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    result.status = Status::CONDITION_NOT_MET;
+    std::string prefix = symbolicPath + ":l:";
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+        if (iter->value() == contents) {
+            rdb->Delete(writeOptions, pcf, iter->key());
+            result.status = Status::OK;
+            break;
+        }
+    }
+    delete iter;
+#endif
+    ++numLRemSuccess;
     return result;
 }
 

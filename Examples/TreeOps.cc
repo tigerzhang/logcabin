@@ -42,6 +42,9 @@ enum class Command {
     SADD,
     SREM,
     PUB,
+    RPUSH,
+    LPOP,
+    LREM
 };
 
 /**
@@ -150,6 +153,12 @@ class OptionParser {
             command = Command::SREM;
         } else if (cmdStr == "pub") {
             command = Command::PUB;
+        } else if (cmdStr == "rpush") {
+            command = Command::RPUSH;
+        } else if (cmdStr == "lpop") {
+            command = Command::LPOP;
+        } else if (cmdStr == "lrem") {
+            command = Command::LREM;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -405,6 +414,18 @@ main(int argc, char** argv)
                 tree.sremEx(path, readStdin());
             case Command::PUB: {
                 tree.pubEx(path, readStdin());
+                break;
+            }
+            case Command::RPUSH: {
+                tree.rpushEx(path, readStdin());
+                break;
+            }
+            case Command::LPOP: {
+                tree.lpopEx(path, "");
+                break;
+            }
+            case Command::LREM: {
+                tree.lremEx(path, readStdin());
                 break;
             }
         }

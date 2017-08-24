@@ -432,6 +432,15 @@ class Tree {
     Result
     pub(const std::string& path, const std::string& contents);
 
+    Result
+    rpush(const std::string& path, const std::string& contents);
+
+    Result
+    lpop(const std::string& path, std::string& contents);
+
+    Result
+    lrem(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path
@@ -553,6 +562,13 @@ private:
     uint64_t numRemoveFileTargetNotFound;
     uint64_t numRemoveFileDone;
     uint64_t numRemoveFileSuccess;
+
+    uint64_t numRPushAttempted;
+    uint64_t numRPushSuccess;
+    uint64_t numLPopAttempted;
+    uint64_t numLPopSuccess;
+    uint64_t numLRemAttempted;
+    uint64_t numLRemSuccess;
 
 #ifdef ROCKSDB_FSM
     typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;

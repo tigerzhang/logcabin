@@ -178,6 +178,22 @@ class ClientImpl {
                       const Condition& condition,
                       TimePoint timeout);
 
+    Result rpush(const std::string& path,
+               const std::string& workingDirectory,
+               const std::string& contents,
+               const Condition& condition,
+               TimePoint timeout);
+
+    Result lpop(const std::string& path,
+                 const std::string& workingDirectory,
+                 const Condition& condition,
+                 TimePoint timeout);
+
+    Result lrem(const std::string& path,
+                 const std::string& workingDirectory,
+                 const std::string& contents,
+                 const Condition& condition,
+                 TimePoint timeout);
     /**
      * Low-level interface to ServerControl service used by
      * Client/ServerControl.cc.

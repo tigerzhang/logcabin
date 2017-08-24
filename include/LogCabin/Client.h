@@ -534,6 +534,21 @@ class Tree {
     void
     pubEx(const std::string& path, const std::string& contents);
 
+    Result
+    rpush(const std::string& path, const std::string& contents);
+    void
+    rpushEx(const std::string& path, const std::string& contents);
+
+    Result
+    lpop(const std::string& path, const std::string& contents);
+    void
+    lpopEx(const std::string& path, const std::string& contents);
+
+    Result
+    lrem(const std::string& path, const std::string& contents);
+    void
+    lremEx(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path
