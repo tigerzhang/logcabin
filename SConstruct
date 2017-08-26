@@ -197,12 +197,7 @@ if env["VERBOSE"] == "0":
 
 env.Append(CPPPATH = '#')
 env.Append(CPPPATH = '#/include')
-env.Append(CPPPATH = '#/ardb/src')
-env.Append(CPPPATH = '#/ardb/src/common')
-env.Append(CPPPATH = '#/ardb/deps/cpp-btree')
-env.Append(CPPPATH = '#/ardb/deps/lua/src')
-env.Append(CPPPATH = '#/ardb/deps/sparsehash-sparsehash-2.0.3/src')
-env.Append(CPPPATH = '#/ardb/deps/rocksdb-5.2.1/include')
+env.Append(CPPPATH = '#/rocksdb-5.2.1/include')
 
 # Define protocol buffers builder to simplify SConstruct files
 def Protobuf(env, source):
@@ -268,11 +263,9 @@ env.Default(clientlib)
 
 libprotobuf = File('/usr/lib/libprotobuf.a')
 libcryptopp = File('/usr/lib/libcrypto++.a')
-liblua = File('#/ardb/deps/lua/src/liblua.a')
 libsnappy = File('/usr/lib/libsnappy.a')
-libjemalloc = File('#/ardb/deps/jemalloc-4.4.0/lib/libjemalloc.a')
-librocksdb = File('#/ardb/deps/rocksdb-5.2.1/librocksdb.a')
-libardb = File('#/ardb/src/libardb.a')
+libjemalloc = File('#/jemalloc-4.4.0/lib/libjemalloc.a')
+librocksdb = File('#/rocksdb-5.2.1/librocksdb.a')
 liblz4 = File('/usr/lib/x86_64-linux-gnu/liblz4.a')
 libbz2 = File('/usr/lib/x86_64-linux-gnu/libbz2.a')
 libsnappy = File('/usr/lib/libsnappy.a')
@@ -287,7 +280,7 @@ daemon = env.Program("build/LogCabin",
              object_files['RPC'] +
              object_files['Event'] +
              object_files['Core']),
-            LIBS = [ "pthread", libprotobuf, "rt", libardb, librocksdb, liblua, libcryptopp, libjemalloc, liblz4, "z", libbz2, libsnappy])
+            LIBS = [ "pthread", libprotobuf, "rt", librocksdb, libcryptopp, libjemalloc, liblz4, "z", libbz2, libsnappy])
 env.Default(daemon)
 
 storageTool = env.Program("build/Storage/Tool",
@@ -300,7 +293,7 @@ storageTool = env.Program("build/Storage/Tool",
              object_files['Tree'] +
              object_files['Protocol'] +
              object_files['Core']),
-            LIBS = [ "pthread", libprotobuf, "rt", libardb, librocksdb, liblua, libcryptopp, libjemalloc, "lz4", "z", "bz2", "snappy"])
+            LIBS = [ "pthread", libprotobuf, "rt", librocksdb, libcryptopp, libjemalloc, "lz4", "z", "bz2", "snappy"])
 env.Default(storageTool)
 
 # Create empty directory so that it can be installed to /var/log/logcabin

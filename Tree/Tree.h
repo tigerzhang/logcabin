@@ -22,10 +22,6 @@
 
 #include "Core/ProtoBuf.h"
 
-#include <db/db.hpp>
-#include <statistics.hpp>
-#include <util/file_helper.hpp>
-
 #include <rocksdb/db.h>
 #include <rocksdb/utilities/checkpoint.h>
 #include <Server/Globals.h>
@@ -576,7 +572,6 @@ private:
 
     LogCabin::Server::RaftConsensus* raft;
     rocksdb::DB* rdb;
-    ardb::Data ns;
     rocksdb::Checkpoint* checkpoint;
     rocksdb::Snapshot* snapshot;
     bool disableWAL;

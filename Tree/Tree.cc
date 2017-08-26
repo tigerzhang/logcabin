@@ -17,14 +17,11 @@
 #include <cassert>
 #include <algorithm>
 #include <dirent.h>
-#include <ardb/src/network.hpp>
-#include <ardb/src/repl/repl.hpp>
 #include <sys/stat.h>
 #include <rocksdb/db.h>
 #include <rocksdb/snapshot.h>
 #include <rocksdb/options.h>
 #include <rocksdb/iterator.h>
-#include <ardb/src/db/rocksdb/rocksdb_engine.hpp>
 
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
@@ -33,7 +30,6 @@
 #include "Tree/Tree.h"
 
 #ifdef ROCKSDB_FSM
-#include <ardb/src/db/codec.hpp>
 #include <Server/RaftConsensus.h>
 
 #endif // ROCKSDB_FSM_REAL
@@ -200,15 +196,11 @@ Directory::lookupDirectory(const std::string& name) const
 Directory*
 Directory::makeDirectory(const std::string& name)
 {
-#ifdef MEM_FSM
     assert(!name.empty());
     assert(!Core::StringUtil::endsWith(name, "/"));
     if (lookupFile(name) != NULL)
         return NULL;
     return &directories[name];
-#else
-    return NULL;
-#endif // MEM_FSM
 }
 
 void
@@ -414,8 +406,6 @@ Tree::Tree() :
 }
 
 Tree::~Tree() {
-    g_repl->Stop();
-    g_repl->Join();
 }
 
 void Tree::Init(std::string& path) {
@@ -460,7 +450,6 @@ void Tree::Init(std::string& path) {
         PANIC("Failed to open db:%s. %s", fsmDir.c_str(), status.ToString().c_str());
     }
 
-    ns.SetInt64(0);
     if (!status.ok()) {
         PANIC("Open rocksdb failed %s", status.ToString().c_str());
     }
@@ -590,6 +579,7 @@ Tree::mkdirLookup(const Path& path, Directory** parent)
 
 void
 Tree::findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const {
+#if 0
     DIR *dir;
     struct dirent *ent;
     char latest_snapshot_dir[256];
@@ -631,6 +621,7 @@ Tree::findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const {
         /* could not open directory */
         perror ("findLatestSnapshot");
     }
+#endif
 }
 
 void
@@ -727,8 +718,8 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
         }
         delete it;
         NOTICE("key dumped: %d", keyDumped);
-    } catch (Exception e) {
-        ERROR("Tree dump snapshot failed: %s", e.GetCause().c_str());
+    } catch (std::exception e) {
+        ERROR("Tree dump snapshot failed: %s", e.what());
         rdb->ReleaseSnapshot(snapshot);
     };
 #endif // ROCKDB_FSM_REAL
@@ -1508,6 +1499,20 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
 #endif // ROCKSDB_FSM
 
 #ifdef ROCKSDB_FSM
+    result.status = Status::LOOKUP_ERROR;
+    result.error = symbolicPath + " does not exist";
+
+    if (symbolicPath == "") {
+        result.status = Status::INVALID_ARGUMENT;
+        return result;
+    }
+
+    if (symbolicPath == "/") {
+        // write to a directory, return TYPE_ERROR
+        result.status = Status::TYPE_ERROR;
+        return result;
+    }
+
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -1526,12 +1531,16 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
 
     rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &contents);
 //    VERBOSE("rocksdb get %s", s.ToString().c_str());
+    if (s.ok()) {
+        result.status = Status::OK;
+    }
 
     std::string prefix = symbolicPath + ":s:";
     auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
     for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
 //        VERBOSE("iter: %s", iter->key().ToString().c_str());
         contents += iter->key().ToString().substr(prefix.length()) + ",";
+        result.status = Status::OK;
     }
     delete iter;
 
@@ -1539,6 +1548,7 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
     iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
     for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
         contents += iter->key().ToString() + ":" + iter->value().ToString() + ",";
+        result.status = Status::OK;
     }
     delete iter;
 #endif // ROCKSDB_FSM_REAL
@@ -1622,8 +1632,34 @@ Tree::removeFile(const std::string& symbolicPath)
         ++numRemoveFileDone;
     else
         ++numRemoveFileTargetNotFound;
-#else
+#endif
+
+#ifdef ROCKSDB_FSM
     Result result;
+    result.status = Status::OK;
+
+    if (symbolicPath == "") {
+        result.status = Status::INVALID_ARGUMENT;
+        return result;
+    }
+
+    if (symbolicPath == "/") {
+        // write to a directory, return TYPE_ERROR
+        result.status = Status::TYPE_ERROR;
+        return result;
+    }
+
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    rdb->Delete(writeOptions, pcf, symbolicPath);
 #endif
     ++numRemoveFileSuccess;
     return result;
