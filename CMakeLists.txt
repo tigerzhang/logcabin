@@ -228,7 +228,6 @@ set(CORE_FILES "Core/Buffer.cc"
     "Core/Util.cc"
 )
 
-set(PROTO_GEN_FILES)
 
 macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
     file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
@@ -240,18 +239,39 @@ macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
             COMMAND cp ${proto_file} ${CMAKE_SOURCE_DIR}/build/${relative_path}
             DEPENDS ${proto_file}
             )
-        list(APPEND PROTO_GEN_FILES ${CMAKE_SOURCE_DIR}/build/${relative_path})
     endforeach()
 endmacro()
 
-COPY_PROTO_FILE_TO_BUILD(PROTOCOL_FILES "Protocol")
 COPY_PROTO_FILE_TO_BUILD(TREE_PROTO_FILES "Tree")
+COPY_PROTO_FILE_TO_BUILD(PROTOCOL_FILES "Protocol")
 COPY_PROTO_FILE_TO_BUILD(STORAGE_PROTO_FILES "Storage")
 COPY_PROTO_FILE_TO_BUILD(SERVER_PROTO_FILES "Server")
 COPY_PROTO_FILE_TO_BUILD(CORE_PROTO_FILES "Core")
 
-message("GEN is :" ${PROTO_GEN_FILES})
-PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTO_GEN_FILES})
+add_custom_target(prepare DEPENDS ${PROTO_GEN_FILES})
+
+set(PROTOBUF_IMPORT_DIRS ${CMAKE_SOURCE_DIR})
+
+SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Tree)
+PROTOBUF_GENERATE_CPP(ProtoSourcesTree ProtoHeaders ${TREE_PROTO_FILES})
+
+SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Protocol)
+PROTOBUF_GENERATE_CPP(ProtoSourcesProtocol ProtoHeaders ${PROTOCOL_FILES})
+
+SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Storage)
+PROTOBUF_GENERATE_CPP(ProtoSourcesStorage ProtoHeaders ${STORAGE_PROTO_FILES})
+
+SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Server)
+PROTOBUF_GENERATE_CPP(ProtoSourcesServer ProtoHeaders ${SERVER_PROTO_FILES})
+
+SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Core)
+PROTOBUF_GENERATE_CPP(ProtoSourcesCore ProtoHeaders ${CORE_PROTO_FILES})
+
+SET(ProtoSources ${ProtoSourcesTree} ${ProtoSourcesProtocol} ${ProtoSourcesStorage} ${ProtoSourcesServer} ${ProtoSourcesCore})
+
+SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
+
+SET(CMAKE_BINARY_DIR ${ORIGINT_BIN_PATH})
 
 set(REDIS_CPP_FILES
         "redis_cpp/src/helpers.cpp"
@@ -299,7 +319,9 @@ set(LIBS ${SUBMODULE_LIBS}
         ${EVENT_LIB_STATIC}
         ${BOOST_SYSTEM_LIB_STATIC})
 add_executable(LogCabin ${SOURCE_FILES})
+
 target_link_libraries(LogCabin ${LIBS})
+
 include_directories(${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/include
         ${CMAKE_CURRENT_BINARY_DIR}
         .
@@ -314,7 +336,6 @@ add_library(logcabin STATIC
         ${RPC_FILES}
         ${EVENT_FILES}
         ${CORE_FILES}
-        ${ProtoSources}
         ${ServerProtoSources}
         ${StorageProtoSources}
         ${TreeProtoSources})
