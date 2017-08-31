@@ -26,7 +26,7 @@ endforeach(Dep)
 # download rocksdb
 set(ROCKSDB_URL "https://github.com/facebook/rocksdb/archive/rocksdb-5.2.1.tar.gz")
 set(ROCKSDB_DOWNLOAD_PATH "${CMAKE_SOURCE_DIR}/rocksdb-5.2.1")
-set(ROCKSDB_EXTRACT_PATH "{CMAKE_SOURCE_DIR}/rocksdb-5.2.1")
+set(ROCKSDB_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/rocksdb-5.2.1")
 if (NOT EXISTS "${ROCKSDB_DOWNLOAD_PATH}")
     message("Download ${ROCKSDB_DOWNLOAD_PATH} ...")
     execute_process(
@@ -97,7 +97,7 @@ if (NOT EXISTS "${LIBPROTOBUF_EXTRACT_PATH}")
 endif()
 
 #set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/protobuf-2.6.1/src ${CMAKE_PREFIX_PATH})
-#set(Protobuf_IMPORT_DIRS /usr/local)
+set(PROTOBUF_IMPORT_DIRS ${CMAKE_SOURCE_DIR})
 find_package(Protobuf REQUIRED)
 
 # Download libevent-2.1.8
@@ -137,12 +137,12 @@ if (NOT EXISTS "${LIBEVENT_EXTRACT_PATH}")
         
 endif()
 
-SET(SUBMODULE_LIBS gtest redis3m
+SET(SUBMODULE_LIBS gtest
                    ${ROCKSDB_EXTRACT_PATH}/librocksdb.a)
 
 #find_package(JeMalloc REQUIRED)
-set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/Protocol)
+#set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
+#        ${PROJECT_SOURCE_DIR}/Protocol)
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3 -fpermissive")
 add_compile_options(-std=c++11)
@@ -228,10 +228,13 @@ set(CORE_FILES "Core/Buffer.cc"
     "Core/Util.cc"
 )
 
-
+SET(BUILD_GEN_PROTO_SRC)
 macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
     file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
     file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build/${DIR})
+    SET(CURRENT_PROTO_FILES)
+    SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/${DIR})
+    SET(${DIR}ProtoSources)
     foreach(proto_file ${${SRC_FILES}})
         file(RELATIVE_PATH relative_path ${CMAKE_SOURCE_DIR} ${proto_file})
         message(STATUS "Proto file: " ${relative_path})
@@ -239,7 +242,24 @@ macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
             COMMAND cp ${proto_file} ${CMAKE_SOURCE_DIR}/build/${relative_path}
             DEPENDS ${proto_file}
             )
+        list(APPEND CURRENT_PROTO_FILES ${CMAKE_SOURCE_DIR}/build/${relative_path})
+        string(REPLACE ".proto" ".pb.cc" CURRENT_OUTPUT ${CMAKE_SOURCE_DIR}/build/${relative_path})
+        add_custom_command(
+            OUTPUT ${CURRENT_OUTPUT}
+            COMMAND protoc -I. --cpp_out=. --python_out=. build/${relative_path}
+            DEPENDS ${CMAKE_SOURCE_DIR}/build/${relative_path}
+        )
+        list(APPEND ${DIR}ProtoSources ${CURRENT_OUTPUT})
+        message(STATUS "current output:" ${CURRENT_OUTPUT})
+        message(STATUS "current ProtoSources var name:" ${DIR}ProtoSources)
+        message(STATUS "current ProtoSources:" ${${DIR}ProtoSources})
     endforeach()
+
+    message("CURRENT PROTO FILES:" ${CURRENT_PROTO_FILES})
+
+    list(APPEND BUILD_GEN_PROTO_SRC ${CURRENT_PROTO_FILES})
+    SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
+    
 endmacro()
 
 COPY_PROTO_FILE_TO_BUILD(TREE_PROTO_FILES "Tree")
@@ -248,26 +268,11 @@ COPY_PROTO_FILE_TO_BUILD(STORAGE_PROTO_FILES "Storage")
 COPY_PROTO_FILE_TO_BUILD(SERVER_PROTO_FILES "Server")
 COPY_PROTO_FILE_TO_BUILD(CORE_PROTO_FILES "Core")
 
-add_custom_target(prepare DEPENDS ${PROTO_GEN_FILES})
 
-set(PROTOBUF_IMPORT_DIRS ${CMAKE_SOURCE_DIR})
+SET(ProtoSources ${TreeProtoSources} ${ProtocolProtoSources} ${StorageProtoSources} ${ServerProtoSources} ${CoreProtoSources})
 
-SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Tree)
-PROTOBUF_GENERATE_CPP(ProtoSourcesTree ProtoHeaders ${TREE_PROTO_FILES})
-
-SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Protocol)
-PROTOBUF_GENERATE_CPP(ProtoSourcesProtocol ProtoHeaders ${PROTOCOL_FILES})
-
-SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Storage)
-PROTOBUF_GENERATE_CPP(ProtoSourcesStorage ProtoHeaders ${STORAGE_PROTO_FILES})
-
-SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Server)
-PROTOBUF_GENERATE_CPP(ProtoSourcesServer ProtoHeaders ${SERVER_PROTO_FILES})
-
-SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/Core)
-PROTOBUF_GENERATE_CPP(ProtoSourcesCore ProtoHeaders ${CORE_PROTO_FILES})
-
-SET(ProtoSources ${ProtoSourcesTree} ${ProtoSourcesProtocol} ${ProtoSourcesStorage} ${ProtoSourcesServer} ${ProtoSourcesCore})
+message(STATUS "PROTO Sources:" ${ProtoSources})
+add_custom_target(prepare DEPENDS ${BUILD_GEN_PROTO_SRC} )
 
 SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
 
@@ -287,7 +292,7 @@ set(SOURCE_FILES
     ${STORAGE_FILES}
     ${TREE_FILES}
     ${CLIENT_FILES}
-    ${ProtoSources}
+    ${ProtocolProtoSources}
     ${RPC_FILES}
     ${EVENT_FILES}
     ${CORE_FILES})
@@ -332,7 +337,7 @@ include_directories(${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/include
 add_library(logcabin STATIC
         ${CLIENT_FILES}
         ${TREE_FILES}
-        ${ProtoSources}
+        ${ProtocolProtoSources}
         ${RPC_FILES}
         ${EVENT_FILES}
         ${CORE_FILES}
