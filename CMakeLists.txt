@@ -163,19 +163,6 @@ add_compile_options(-Woverloaded-virtual)
 add_compile_options(-Wwrite-strings)
 add_compile_options(-DSWIG)
 
-function(COPY_PROTO_FILE_TO_BUILD DES_FILES)
-    message(STATUS "copy proto file to build: " ${SRCS})
-    set(${DES_FILES})
-    foreach(proto_file ${SRCS})
-        message(STATUS "Proto file: " ${proto_file})
-            add_custom_command(OUTPUT ${CMAKE_SOURCE_DIR}/build/${proto_file}
-                    COMMAND ${CMAKE_COMMAND} -E copy ${proto_file} ${CMAKE_SOURCE_DIR}/build/${proto_file}
-                    DEPENDS ${proto_file}
-                    )
-        list(APPEND PROTO_FILES_BUILD ${CMAKE_SOURCE_DIR}/build/${proto_file})
-    endforeach()
-endfunction()
-
 set(SERVER_FILES "Server/ClientService.cc"
     "Server/ControlService.cc"
     "Server/Globals.cc"
@@ -241,20 +228,30 @@ set(CORE_FILES "Core/Buffer.cc"
     "Core/Util.cc"
 )
 
-#foreach(proto_file ${PROTOCOL_FILES})
-#    message(STATUS "Proto file: " ${proto_file})
-#    add_custom_command(OUTPUT ${CMAKE_SOURCE_DIR}/build/${proto_file}
-#            COMMAND ${CMAKE_COMMAND} -E copy ${proto_file} ${CMAKE_SOURCE_DIR}/build/${proto_file}
-#            DEPENDS ${proto_file}
-#            )
-#    list(APPEND PROTO_FILES_BUILD ${CMAKE_SOURCE_DIR}/build/${proto_file})
-#endforeach()
-COPY_PROTO_FILE_TO_BUILD(${PROTOCOL_FILES})
-PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTOCOL_FILES})
-PROTOBUF_GENERATE_CPP(ServerProtoSources ServerProtoHeaders ${SERVER_PROTO_FILES})
-PROTOBUF_GENERATE_CPP(StorageProtoSources StorageProtoHeaders ${STORAGE_PROTO_FILES})
-PROTOBUF_GENERATE_CPP(TreeProtoSources TreeProtoHeaders ${TREE_PROTO_FILES})
-PROTOBUF_GENERATE_CPP(CoreProtoSources CoreProtoHeaders ${CORE_PROTO_FILES})
+set(PROTO_GEN_FILES)
+
+macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
+    file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
+    file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/build/${DIR})
+    foreach(proto_file ${${SRC_FILES}})
+        file(RELATIVE_PATH relative_path ${CMAKE_SOURCE_DIR} ${proto_file})
+        message(STATUS "Proto file: " ${relative_path})
+        add_custom_command(OUTPUT ${CMAKE_SOURCE_DIR}/build/${relative_path}
+            COMMAND cp ${proto_file} ${CMAKE_SOURCE_DIR}/build/${relative_path}
+            DEPENDS ${proto_file}
+            )
+        list(APPEND PROTO_GEN_FILES ${CMAKE_SOURCE_DIR}/build/${relative_path})
+    endforeach()
+endmacro()
+
+COPY_PROTO_FILE_TO_BUILD(PROTOCOL_FILES "Protocol")
+COPY_PROTO_FILE_TO_BUILD(TREE_PROTO_FILES "Tree")
+COPY_PROTO_FILE_TO_BUILD(STORAGE_PROTO_FILES "Storage")
+COPY_PROTO_FILE_TO_BUILD(SERVER_PROTO_FILES "Server")
+COPY_PROTO_FILE_TO_BUILD(CORE_PROTO_FILES "Core")
+
+message("GEN is :" ${PROTO_GEN_FILES})
+PROTOBUF_GENERATE_CPP(ProtoSources ProtoHeaders ${PROTO_GEN_FILES})
 
 set(REDIS_CPP_FILES
         "redis_cpp/src/helpers.cpp"
@@ -284,7 +281,7 @@ set(HIREDIS_FILES
         "hiredis/sds.c")
 
 find_library(LZ4_LIB_STATIC NAMES liblz4.a)
-find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib NO_DEFAULT_PATH)
+find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib)
 find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
 find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
 find_library(BZ2_LIB_STATIC NAMES libbz2.a)
