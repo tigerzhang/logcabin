@@ -345,6 +345,8 @@ add_library(logcabin STATIC
         ${StorageProtoSources}
         ${TreeProtoSources})
 
+add_dependencies(logcabin prepare)
+
 add_executable(Benchmark ${CMAKE_SOURCE_DIR}/Examples/Benchmark.cc)
 target_link_libraries(Benchmark logcabin ${LIBS})
 add_executable(FailoverTest ${CMAKE_SOURCE_DIR}/Examples/FailoverTest.cc)
