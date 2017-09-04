@@ -6,75 +6,129 @@ project(logcabin)
 add_definitions(-DARDB_STATEMACHINE)
 enable_testing()
 
-# install dependecies
+set(THREE_PARTY_DEPS_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/deps)
+set(THREE_PARTY_LIBS_REL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/third_party)
+
+message(STATUS "Create 3rd libs release directory: " ${THREE_PARTY_LIBS_REL_DIR})
+
+execute_process(COMMAND "nproc" OUTPUT_VARIABLE PROCESSOR_NUM)
+execute_process(COMMAND "mkdir" -p ${THREE_PARTY_LIBS_REL_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# install basic dependecies
 set(DEPENDENCIES lz4 jemalloc crypto++ snappy bz2 pthread-stubs0 boost-all msgpack)
 foreach(Dep ${DEPENDENCIES})
     string(CONCAT Dep2 lib ${Dep} -dev)
-    message("Installing Dep:  " ${Dep2})
+    message("Install basic dependency:  " ${Dep2})
     execute_process(COMMAND "dpkg" -l ${Dep2} RESULT_VARIABLE res_var OUTPUT_QUIET)
     if(NOT "${res_var}" STREQUAL "0")
         execute_process(COMMAND "sudo" apt-get -qq install ${Dep2})
     endif()
 endforeach(Dep)
 
-message(STATUS "building rocksdb =>")
-set(ROCKSDB_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/rocksdb-5.2.1")
-execute_process(COMMAND "make" static_lib
-                WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR})
+# builds rocksdb
+set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
+set(ROCKSDB_LIB_NAME librocksdb.a)
+set(ROCKSDB_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
+set(ROCKSDB_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
 
-message(STATUS "building gtest => ")
-set(GTEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/gtest-c6d1811")
-execute_process(
-        COMMAND "mkdir" ${GTEST_SOURCE_DIR}/build
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
-execute_process(
-        COMMAND "cmake" ..
-        WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build
-)
-execute_process(
-        COMMAND "make"
-        WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build
-)
+if (EXISTS ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
+    message(STATUS "Use: " ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
+else()
+    message(STATUS "Building rocksdb => " ${ROCKSDB_SOURCE_DIR})
+    execute_process(
+            COMMAND "mkdir" -p ${ROCKSDB_REL_DIR}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    execute_process(
+            COMMAND "make" static_lib
+            WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR}
+    )
+    execute_process(
+            COMMAND "cp" ${ROCKSDB_SOURCE_DIR}/${ROCKSDB_LIB_NAME} ${ROCKSDB_REL_DIR}
+            WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR}
+    )
+endif()
 
-message(STATUS "building libevent =>")
-set(LIBEVENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/libevent-2.1.8-stable")
-execute_process(
-        COMMAND "sh" -c ./autogen.sh
-        WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
-)
-execute_process(
-        COMMAND "sh" -c ./configure
-        WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
-)
-execute_process(
-        COMMAND "sh" -c make -j4
-        WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
-)
+# build gtest
+set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
+set(GTEST_LIB_NAME libgtest.a)
+set(GTEST_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
+set(GTEST_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
 
-message(STATUS "building protobuf =>")
-set(PROTOBUF_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1")
-execute_process(
-        COMMAND "mkdir" ${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
-execute_process(
-        COMMAND "./configure" --prefix=${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build
-        WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-)
-execute_process(
-        COMMAND "make" -j4
-        WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-)
-execute_process(
-        COMMAND "make" install
-        WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-)
+if (EXISTS ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
+    message(STATUS "Use: " ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
+else()
+    message(STATUS "Building gtest => " ${GTEST_SOURCE_DIR})
+    execute_process(
+            COMMAND "mkdir" -p ${GTEST_SOURCE_DIR}/build
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    execute_process(
+            COMMAND "cmake" ..
+            WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
+    execute_process(
+            COMMAND "make"
+            WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
+    execute_process(
+            COMMAND "mkdir" -p ${GTEST_REL_DIR}
+            WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
+    execute_process(
+            COMMAND "cp" ${GTEST_SOURCE_DIR}/build/${GTEST_LIB_NAME} ${GTEST_REL_DIR}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
 
-set(PROTOC "${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build/bin/protoc")
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build/include)
+# build libevent
+set(LIBEVENT_SOURCE_DIR_NAME libevent-2.1.8-stable)
+set(LIBEVENT_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
+set(LIBEVENT_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
 
-SET(SUBMODULE_LIBS ${CMAKE_SOURCE_DIR}/deps/gtest-c6d1811/build/libgtest.a ${ROCKSDB_SOURCE_DIR}/librocksdb.a)
+if (EXISTS ${LIBEVENT_REL_DIR})
+    message(STATUS "Use: " ${LIBEVENT_REL_DIR})
+else()
+    message(STATUS "Building libevent => " ${LIBEVENT_SOURCE_DIR})
+    execute_process(
+            COMMAND "./configure" --prefix=${LIBEVENT_REL_DIR}
+            WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+    )
+    execute_process(
+            COMMAND "make" -j${PROCESSOR_NUM}
+            WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+    )
+    execute_process(
+            COMMAND "make" install
+            WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+    )
+endif()
+
+# build protobuf
+set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
+set(PROTOBUF_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+set(PROTOBUF_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
+
+if (EXISTS ${PROTOBUF_REL_DIR})
+    message(STATUS "Use: " ${PROTOBUF_REL_DIR})
+else()
+    message(STATUS "Building protobuf => " ${PROTOBUF_SOURCE_DIR})
+    execute_process(
+            COMMAND "./configure" --prefix=${PROTOBUF_REL_DIR}
+            WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+    )
+    execute_process(
+            COMMAND "make" -j2
+            WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+    )
+    execute_process(
+            COMMAND "make" install
+            WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+    )
+endif()
+
+include_directories(${PROTOBUF_REL_DIR}/include)
+
+SET(SUBMODULE_LIBS ${GTEST_REL_DIR}/${GTEST_LIB_NAME}
+                   ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
+
 add_compile_options(-std=c++11)
 add_compile_options(-O0)
 add_compile_options(-ggdb3)
@@ -92,6 +146,7 @@ add_compile_options(-Wno-unused-parameter)
 add_compile_options(-Woverloaded-virtual)
 add_compile_options(-Wwrite-strings)
 add_compile_options(-DSWIG)
+add_compile_options(-fno-access-control)
 
 set(SERVER_FILES "Server/ClientService.cc"
     "Server/ControlService.cc"
@@ -102,6 +157,7 @@ set(SERVER_FILES "Server/ClientService.cc"
     "Server/ServerStats.cc"
     "Server/StateMachine.cc"
 )
+
 file(GLOB SERVER_PROTO_FILES "Server/*.proto")
 set(STORAGE_FILES "Storage/FilesystemUtil.cc"
     "Storage/Layout.cc"
@@ -112,10 +168,12 @@ set(STORAGE_FILES "Storage/FilesystemUtil.cc"
     "Storage/SimpleFileLog.cc"
     "Storage/SnapshotFile.cc"
 )
+
 file(GLOB STORAGE_PROTO_FILES "Storage/*.proto")
 set(TREE_FILES "Tree/ProtoBuf.cc"
     "Tree/Tree.cc"
 )
+
 file(GLOB TREE_PROTO_FILES "Tree/*.proto")
 set(CLIENT_FILES "Client/Backoff.cc"
     "Client/Client.cc"
@@ -125,6 +183,7 @@ set(CLIENT_FILES "Client/Backoff.cc"
     "Client/SessionManager.cc"
     "Client/Util.cc"
 )
+
 file(GLOB PROTOCOL_FILES "Protocol/*.proto")
 set(RPC_FILES "RPC/Address.cc"
     "RPC/ClientRPC.cc"
@@ -138,11 +197,13 @@ set(RPC_FILES "RPC/Address.cc"
     "RPC/ServerRPC.cc"
     "RPC/ThreadDispatchService.cc"
 )
+
 set(EVENT_FILES "Event/File.cc"
     "Event/Loop.cc"
     "Event/Signal.cc"
     "Event/Timer.cc"
 )
+
 file(GLOB CORE_PROTO_FILES "Core/*.proto")
 set(CORE_FILES "Core/Buffer.cc"
     "Core/Checksum.cc"
@@ -197,20 +258,13 @@ COPY_PROTO_FILE_TO_BUILD(STORAGE_PROTO_FILES "Storage")
 COPY_PROTO_FILE_TO_BUILD(SERVER_PROTO_FILES "Server")
 COPY_PROTO_FILE_TO_BUILD(CORE_PROTO_FILES "Core")
 
-
 SET(ProtoSources ${TreeProtoSources} ${ProtocolProtoSources} ${StorageProtoSources} ${ServerProtoSources} ${CoreProtoSources})
 
 message(STATUS "PROTO Sources:" ${ProtoSources})
 add_custom_target(prepare DEPENDS ${BUILD_GEN_PROTO_SRC})
 
 SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
-
 SET(CMAKE_BINARY_DIR ${ORIGINT_BIN_PATH})
-
-set(REDIS_CPP_FILES
-        "redis_cpp/src/helpers.cpp"
-        "redis_cpp/src/redis_interface.cpp"
-        "redis_cpp/src/redis_protocol/resp_protocol.cpp")
 
 set(SOURCE_FILES
     "Server/Main.cc"
@@ -232,7 +286,7 @@ find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
 find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
 find_library(BZ2_LIB_STATIC NAMES libbz2.a)
 find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
-file(GLOB EVENT_LIB_STATIC "${CMAKE_SOURCE_DIR}/deps/libevent-2.1.8-stable/.libs/*.a")
+file(GLOB EVENT_LIB_STATIC ${LIBEVENT_REL_DIR}/lib)
 find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
 
 set(LIBS ${SUBMODULE_LIBS}
@@ -248,12 +302,12 @@ add_executable(LogCabin ${SOURCE_FILES})
 
 target_link_libraries(LogCabin ${LIBS})
 
-include_directories(${CMAKE_SOURCE_DIR}/deps/libevent-2.1.8-stable/include
+include_directories(${LIBEVENT_REL_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}
         .
         ./include
-        ${CMAKE_SOURCE_DIR}/deps/gtest-c6d1811/include
-        ${ROCKSDB_EXTRACT_PATH}/include)
+        ${GTEST_SOURCE_DIR}/include
+        ${ROCKSDB_SOURCE_DIR}/include)
 
 add_library(logcabin STATIC
         ${CLIENT_FILES}
@@ -286,8 +340,6 @@ add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
 target_link_libraries(ServerControl logcabin ${LIBS})
 add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources})
 target_link_libraries(Tool logcabin ${LIBS} pthread)
-
-add_compile_options(-fno-access-control)
 
 file(GLOB CLIENT_TEST_FILES "Client/*Test.cc" "Client/*Mock.cc")
 file(GLOB CORE_TEST_FILES "Core/*Test.cc" "Core/*Mock.cc")
