@@ -17,134 +17,64 @@ foreach(Dep ${DEPENDENCIES})
     endif()
 endforeach(Dep)
 
-# build submodule
-# message(STATUS "building redis...")
-# set(REDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/redis")
-# execute_process(COMMAND "make"
-#                 WORKING_DIRECTORY ${REDIS_SOURCE_DIR})
+message(STATUS "building rocksdb =>")
+set(ROCKSDB_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/rocksdb-5.2.1")
+execute_process(COMMAND "make" static_lib
+                WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR})
 
-# download rocksdb
-set(ROCKSDB_URL "https://github.com/facebook/rocksdb/archive/rocksdb-5.2.1.tar.gz")
-set(ROCKSDB_DOWNLOAD_PATH "${CMAKE_SOURCE_DIR}/rocksdb-5.2.1")
-set(ROCKSDB_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/rocksdb-5.2.1")
-if (NOT EXISTS "${ROCKSDB_DOWNLOAD_PATH}")
-    message("Download ${ROCKSDB_DOWNLOAD_PATH} ...")
-    execute_process(
-        COMMAND wget ${ROCKSDB_URL} -O ${ROCKSDB_EXTRACT_PATH}
-        TIMEOUT 100000
-    )
-    message("Extract ${ROCKSDB_DOWNLOAD_PATH} ...")
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -E tar zxf ${ROCKSDB_DOWNLOAD_PATH}
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            RESULT_VARIABLE res_var
-    )
-    if (${res_var} STREQUAL "0")
-        execute_process(COMMAND "make" static_lib
-                WORKING_DIRECTORY ${ROCKSDB_EXTRACT_PATH})
-    endif()
-endif()
+message(STATUS "building gtest => ")
+set(GTEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/gtest-c6d1811")
+execute_process(
+        COMMAND "mkdir" ${GTEST_SOURCE_DIR}/build
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+execute_process(
+        COMMAND "cmake" ..
+        WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build
+)
+execute_process(
+        COMMAND "make"
+        WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build
+)
 
-# message(STATUS "building rocksdb...")
-# set(ROCKSDB_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb")
-# execute_process(COMMAND "make" static_lib
-#                 WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR})
+message(STATUS "building libevent =>")
+set(LIBEVENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/libevent-2.1.8-stable")
+execute_process(
+        COMMAND "sh" -c ./autogen.sh
+        WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+)
+execute_process(
+        COMMAND "sh" -c ./configure
+        WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+)
+execute_process(
+        COMMAND "sh" -c make -j4
+        WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+)
 
-# message(STATUS "building hiredis..")
-# set(HIREDIS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/hiredis")
-# execute_process(COMMAND "make"
-#                 WORKING_DIRECTORY ${HIREDIS_SOURCE_DIR})
+message(STATUS "building protobuf =>")
+set(PROTOBUF_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1")
+execute_process(
+        COMMAND "mkdir" ${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+execute_process(
+        COMMAND "./configure" --prefix=${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build
+        WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+)
+execute_process(
+        COMMAND "make" -j4
+        WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+)
+execute_process(
+        COMMAND "make" install
+        WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+)
 
-message(STATUS "building gtest...")
-add_subdirectory(gtest)
+set(PROTOC "${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build/bin/protoc")
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/deps/protobuf-2.6.1/build/include)
 
-# message(STATUS "building redis3m...")
-# add_subdirectory(redis3m)
-
-# Download protobuf
-set(LIBPROTOBUF_URL "https://github.com/google/protobuf/releases/download/v2.6.1/protobuf-2.6.1.tar.gz")
-set(LIBPROTOBUF_DOWNLOAD_PATH "${CMAKE_SOURCE_DIR}/protobuf-2.6.1.tar.gz")
-set(LIBPROTOBUF_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/protobuf-2.6.1")
-if (NOT EXISTS "${LIBPROTOBUF_EXTRACT_PATH}")
-    message("Download ${LIBPROTOBUF_DOWNLOAD_PATH} ...")
-    execute_process(
-        COMMAND wget ${LIBPROTOBUF_URL} -O ${LIBPROTOBUF_DOWNLOAD_PATH}
-        TIMEOUT 100000
-    )
-    message("Extract ${LIBPROTOBUF_DOWNLOAD_PATH} ...")
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -E tar zxf ${LIBPROTOBUF_DOWNLOAD_PATH}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        RESULT_VARIABLE res_var
-    )
-    if (${res_var} STREQUAL "0")
-        execute_process(
-            COMMAND "sh" -c ./configure --prefix=/usr
-            WORKING_DIRECTORY ${LIBPROTOBUF_EXTRACT_PATH}
-            RESULT_VARIABLE res_var
-        )
-        execute_process(
-            COMMAND "sh" -c make -j4
-            WORKING_DIRECTORY ${LIBPROTOBUF_EXTRACT_PATH}
-            RESULT_VARIABLE res_var
-        )
-        execute_process(
-            COMMAND "sh" -c sudo make install
-            WORKING_DIRECTORY ${LIBPROTOBUF_EXTRACT_PATH}
-            RESULT_VARIABLE res_var
-        )
-    endif()
-endif()
-
-#set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/protobuf-2.6.1/src ${CMAKE_PREFIX_PATH})
-set(PROTOBUF_IMPORT_DIRS ${CMAKE_SOURCE_DIR})
-find_package(Protobuf REQUIRED)
-
-# Download libevent-2.1.8
-set(LIBEVENT_URL "https://github.com/libevent/libevent/releases/download/release-2.1.8-stable/libevent-2.1.8-stable.tar.gz")
-set(LIBEVENT_DOWNLOAD_PATH "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable.tar.gz")
-set(LIBEVENT_EXTRACT_PATH "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable")
-
-if (NOT EXISTS "${LIBEVENT_EXTRACT_PATH}")
-    message("Download ${LIBEVENT_DOWNLOAD_PATH} ...")
-    execute_process(
-        COMMAND wget ${LIBEVENT_URL} -O ${LIBEVENT_DOWNLOAD_PATH}
-        TIMEOUT 100000 # it takes very long time
-    )
-    message("Download ${LIBEVENT_DOWNLOAD_PATH} finished.")
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -E tar xzf ${LIBEVENT_DOWNLOAD_PATH}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	    RESULT_VARIABLE res_var
-    )
-    if (${res_var} STREQUAL "0")
-        execute_process(
-                COMMAND "sh" -c ./autogen.sh
-                WORKING_DIRECTORY ${LIBEVENT_EXTRACT_PATH}
-                RESULT_VARIABLE res_var
-        )
-        execute_process(
-                COMMAND "sh" -c ./configure
-                WORKING_DIRECTORY ${LIBEVENT_EXTRACT_PATH}
-                RESULT_VARIABLE res_var
-        )
-        execute_process(
-                COMMAND "sh" -c make -j4
-                WORKING_DIRECTORY ${LIBEVENT_EXTRACT_PATH}
-                RESULT_VARIABLE res_var
-        )
-    endif()
-        
-endif()
-
-SET(SUBMODULE_LIBS gtest
-                   ${ROCKSDB_EXTRACT_PATH}/librocksdb.a)
-
-#find_package(JeMalloc REQUIRED)
-#set(Protobuf_IMPORT_DIRS ${PROJECT_SOURCE_DIR}
-#        ${PROJECT_SOURCE_DIR}/Protocol)
-
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -ggdb3 -fpermissive")
+SET(SUBMODULE_LIBS ${CMAKE_SOURCE_DIR}/deps/gtest-c6d1811/build/libgtest.a ${ROCKSDB_SOURCE_DIR}/librocksdb.a)
 add_compile_options(-std=c++11)
 add_compile_options(-O0)
 add_compile_options(-ggdb3)
@@ -246,7 +176,7 @@ macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
         string(REPLACE ".proto" ".pb.cc" CURRENT_OUTPUT ${CMAKE_SOURCE_DIR}/build/${relative_path})
         add_custom_command(
             OUTPUT ${CURRENT_OUTPUT}
-            COMMAND protoc -I. --cpp_out=. --python_out=. build/${relative_path}
+            COMMAND ${PROTOC} -I. --cpp_out=. --python_out=. build/${relative_path}
             DEPENDS ${CMAKE_SOURCE_DIR}/build/${relative_path}
         )
         list(APPEND ${DIR}ProtoSources ${CURRENT_OUTPUT})
@@ -259,7 +189,6 @@ macro(COPY_PROTO_FILE_TO_BUILD SRC_FILES DIR)
 
     list(APPEND BUILD_GEN_PROTO_SRC ${CURRENT_PROTO_FILES})
     SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
-    
 endmacro()
 
 COPY_PROTO_FILE_TO_BUILD(TREE_PROTO_FILES "Tree")
@@ -272,7 +201,7 @@ COPY_PROTO_FILE_TO_BUILD(CORE_PROTO_FILES "Core")
 SET(ProtoSources ${TreeProtoSources} ${ProtocolProtoSources} ${StorageProtoSources} ${ServerProtoSources} ${CoreProtoSources})
 
 message(STATUS "PROTO Sources:" ${ProtoSources})
-add_custom_target(prepare DEPENDS ${BUILD_GEN_PROTO_SRC} )
+add_custom_target(prepare DEPENDS ${BUILD_GEN_PROTO_SRC})
 
 SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
 
@@ -297,21 +226,13 @@ set(SOURCE_FILES
     ${EVENT_FILES}
     ${CORE_FILES})
 
-set(HIREDIS_FILES
-        "hiredis/async.c"
-        "hiredis/hiredis.c"
-        "hiredis/read.c"
-        "hiredis/dict.c"
-        "hiredis/net.c"
-        "hiredis/sds.c")
-
 find_library(LZ4_LIB_STATIC NAMES liblz4.a)
 find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib)
 find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
 find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
 find_library(BZ2_LIB_STATIC NAMES libbz2.a)
 find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
-file(GLOB EVENT_LIB_STATIC "${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/.libs/*.a")
+file(GLOB EVENT_LIB_STATIC "${CMAKE_SOURCE_DIR}/deps/libevent-2.1.8-stable/.libs/*.a")
 find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
 
 set(LIBS ${SUBMODULE_LIBS}
@@ -327,11 +248,11 @@ add_executable(LogCabin ${SOURCE_FILES})
 
 target_link_libraries(LogCabin ${LIBS})
 
-include_directories(${CMAKE_SOURCE_DIR}/libevent-2.1.8-stable/include
+include_directories(${CMAKE_SOURCE_DIR}/deps/libevent-2.1.8-stable/include
         ${CMAKE_CURRENT_BINARY_DIR}
         .
         ./include
-        gtest/include
+        ${CMAKE_SOURCE_DIR}/deps/gtest-c6d1811/include
         ${ROCKSDB_EXTRACT_PATH}/include)
 
 add_library(logcabin STATIC
@@ -365,10 +286,7 @@ add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
 target_link_libraries(ServerControl logcabin ${LIBS})
 add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources})
 target_link_libraries(Tool logcabin ${LIBS} pthread)
-# add_executable(RedisProxy ${CMAKE_SOURCE_DIR}/Examples/RedisProxy.cc ${REDISSERVER_FILES} ${HIREDIS_FILES})
-# target_link_libraries(RedisProxy logcabin ${LIBS})
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
 add_compile_options(-fno-access-control)
 
 file(GLOB CLIENT_TEST_FILES "Client/*Test.cc" "Client/*Mock.cc")
