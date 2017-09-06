@@ -269,6 +269,10 @@ SET(ProtoSources ${TreeProtoSources} ${ProtocolProtoSources} ${StorageProtoSourc
 message(STATUS "PROTO Sources:" ${ProtoSources})
 add_custom_target(prepare DEPENDS ${BUILD_GEN_PROTO_SRC})
 
+set(CMAKE_GENERATED_FILES CMakeCache.txt CMakeFiles cmake_install.cmake CTestTestfile.cmake cmake-build-debug)
+add_custom_target(clean-cmake-files
+        COMMAND rm -rf ${CMAKE_GENERATED_FILES})
+
 SET(CMAKE_CURRENT_BINARY_DIR ${CMAKE_BINARY_DIR})
 SET(CMAKE_BINARY_DIR ${ORIGINT_BIN_PATH})
 
