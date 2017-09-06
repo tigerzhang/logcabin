@@ -59,22 +59,15 @@ Get the source code:
 
     git clone git://github.com/logcabin/logcabin.git
     cd logcabin
-    git submodule update --init
 
-Download and build the dependencies:
+Download and build the third party dependencies:
 
-    wget https://github.com/facebook/rocksdb/archive/rocksdb-5.2.1.tar.gz
-    tar zxf rocksdb-5.2.1.tar.gz
-    cd rocksdb-5.2.1
-    make static_lib
-    cd ..
-    
-    wget -O jemalloc-4.4.0.tar.gz https://github.com/jemalloc/jemalloc/archive/4.4.0.tar.gz
-    tar zxf jemalloc-4.4.0.tar.gz
-    cd jemalloc-4.4.0
-    ./autogen.sh
-    make
-    cd ..
+    cmake .
+    make -j4
+
+Clean all cmake generated files:
+
+    make clean-cmake-files
 
 Build the client library, server binary, and unit tests:
 
