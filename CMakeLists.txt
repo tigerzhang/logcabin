@@ -320,8 +320,8 @@ target_link_libraries(LogCabin ${LIBS})
 
 include_directories(${LIBEVENT_REL_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}
-        .
-        ./include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${GTEST_SOURCE_DIR}/include
         ${ROCKSDB_SOURCE_DIR}/include)
 
