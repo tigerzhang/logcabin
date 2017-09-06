@@ -20,6 +20,7 @@ CMakeFiles/
 *.pb.h
 *.lo
 *.la
+*.cbp
 .deps
 cmake_install.cmake
 *.cmake

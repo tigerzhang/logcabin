@@ -14,115 +14,121 @@ message(STATUS "Create 3rd libs release directory: " ${THREE_PARTY_LIBS_REL_DIR}
 execute_process(COMMAND "nproc" OUTPUT_VARIABLE PROCESSOR_NUM)
 execute_process(COMMAND "mkdir" -p ${THREE_PARTY_LIBS_REL_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-# install basic dependecies
-set(DEPENDENCIES lz4 jemalloc crypto++ snappy bz2 pthread-stubs0 boost-all msgpack)
-foreach(Dep ${DEPENDENCIES})
-    string(CONCAT Dep2 lib ${Dep} -dev)
-    message("Install basic dependency:  " ${Dep2})
-    execute_process(COMMAND "dpkg" -l ${Dep2} RESULT_VARIABLE res_var OUTPUT_QUIET)
-    if(NOT "${res_var}" STREQUAL "0")
-        execute_process(COMMAND "sudo" apt-get -qq install ${Dep2})
+if (APPLE)
+    message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
+elseif (UNIX)
+    # install basic dependecies
+    set(DEPENDENCIES lz4 jemalloc crypto++ snappy bz2 pthread-stubs0 boost-all msgpack)
+    foreach(Dep ${DEPENDENCIES})
+        string(CONCAT Dep2 lib ${Dep} -dev)
+        message("Install basic dependency:  " ${Dep2})
+        execute_process(COMMAND "dpkg" -l ${Dep2} RESULT_VARIABLE res_var OUTPUT_QUIET)
+        if(NOT "${res_var}" STREQUAL "0")
+            execute_process(COMMAND "sudo" apt-get -qq install ${Dep2})
+        endif()
+    endforeach(Dep)
+
+    # builds rocksdb
+    set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
+    set(ROCKSDB_LIB_NAME librocksdb.a)
+    set(ROCKSDB_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
+    set(ROCKSDB_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
+
+    if (EXISTS ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
+        message(STATUS "Use: " ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
+    else()
+        message(STATUS "Building rocksdb => " ${ROCKSDB_SOURCE_DIR})
+        execute_process(
+                COMMAND "mkdir" -p ${ROCKSDB_REL_DIR}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" static_lib
+                WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "cp" ${ROCKSDB_SOURCE_DIR}/${ROCKSDB_LIB_NAME} ${ROCKSDB_REL_DIR}
+                WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR}
+        )
     endif()
-endforeach(Dep)
 
-# builds rocksdb
-set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
-set(ROCKSDB_LIB_NAME librocksdb.a)
-set(ROCKSDB_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
-set(ROCKSDB_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
+    # build gtest
+    set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
+    set(GTEST_LIB_NAME libgtest.a)
+    set(GTEST_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
+    set(GTEST_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
 
-if (EXISTS ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
-    message(STATUS "Use: " ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
-else()
-    message(STATUS "Building rocksdb => " ${ROCKSDB_SOURCE_DIR})
-    execute_process(
-            COMMAND "mkdir" -p ${ROCKSDB_REL_DIR}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-    execute_process(
-            COMMAND "make" static_lib
-            WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR}
-    )
-    execute_process(
-            COMMAND "cp" ${ROCKSDB_SOURCE_DIR}/${ROCKSDB_LIB_NAME} ${ROCKSDB_REL_DIR}
-            WORKING_DIRECTORY ${ROCKSDB_SOURCE_DIR}
-    )
-endif()
+    if (EXISTS ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
+        message(STATUS "Use: " ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
+    else()
+        message(STATUS "Building gtest => " ${GTEST_SOURCE_DIR})
+        execute_process(
+                COMMAND "mkdir" -p ${GTEST_SOURCE_DIR}/build
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        execute_process(
+                COMMAND "cmake" ..
+                WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
+        execute_process(
+                COMMAND "make"
+                WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
+        execute_process(
+                COMMAND "mkdir" -p ${GTEST_REL_DIR}
+                WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
+        execute_process(
+                COMMAND "cp" ${GTEST_SOURCE_DIR}/build/${GTEST_LIB_NAME} ${GTEST_REL_DIR}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+    endif()
 
-# build gtest
-set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
-set(GTEST_LIB_NAME libgtest.a)
-set(GTEST_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
-set(GTEST_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
+    # build libevent
+    set(LIBEVENT_SOURCE_DIR_NAME libevent-2.1.8-stable)
+    set(LIBEVENT_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
+    set(LIBEVENT_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
 
-if (EXISTS ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
-    message(STATUS "Use: " ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
-else()
-    message(STATUS "Building gtest => " ${GTEST_SOURCE_DIR})
-    execute_process(
-            COMMAND "mkdir" -p ${GTEST_SOURCE_DIR}/build
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    execute_process(
-            COMMAND "cmake" ..
-            WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
-    execute_process(
-            COMMAND "make"
-            WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
-    execute_process(
-            COMMAND "mkdir" -p ${GTEST_REL_DIR}
-            WORKING_DIRECTORY ${GTEST_SOURCE_DIR}/build)
-    execute_process(
-            COMMAND "cp" ${GTEST_SOURCE_DIR}/build/${GTEST_LIB_NAME} ${GTEST_REL_DIR}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    )
-endif()
+    if (EXISTS ${LIBEVENT_REL_DIR})
+        message(STATUS "Use: " ${LIBEVENT_REL_DIR})
+    else()
+        message(STATUS "Building libevent => " ${LIBEVENT_SOURCE_DIR})
+        execute_process(
+                COMMAND "./configure" --prefix=${LIBEVENT_REL_DIR}
+                WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" -j${PROCESSOR_NUM}
+                WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" install
+                WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
+        )
+    endif()
 
-# build libevent
-set(LIBEVENT_SOURCE_DIR_NAME libevent-2.1.8-stable)
-set(LIBEVENT_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
-set(LIBEVENT_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
+    # build protobuf
+    set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
+    set(PROTOBUF_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+    set(PROTOBUF_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+    set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
 
-if (EXISTS ${LIBEVENT_REL_DIR})
-    message(STATUS "Use: " ${LIBEVENT_REL_DIR})
-else()
-    message(STATUS "Building libevent => " ${LIBEVENT_SOURCE_DIR})
-    execute_process(
-            COMMAND "./configure" --prefix=${LIBEVENT_REL_DIR}
-            WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
-    )
-    execute_process(
-            COMMAND "make" -j${PROCESSOR_NUM}
-            WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
-    )
-    execute_process(
-            COMMAND "make" install
-            WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
-    )
-endif()
-
-# build protobuf
-set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
-set(PROTOBUF_REL_DIR ${THREE_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
-set(PROTOBUF_SOURCE_DIR ${THREE_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
-set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
-
-if (EXISTS ${PROTOBUF_REL_DIR})
-    message(STATUS "Use: " ${PROTOBUF_REL_DIR})
-else()
-    message(STATUS "Building protobuf => " ${PROTOBUF_SOURCE_DIR})
-    execute_process(
-            COMMAND "./configure" --prefix=${PROTOBUF_REL_DIR}
-            WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-    )
-    execute_process(
-            COMMAND "make" -j2
-            WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-    )
-    execute_process(
-            COMMAND "make" install
-            WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-    )
-endif()
+    if (EXISTS ${PROTOBUF_REL_DIR})
+        message(STATUS "Use: " ${PROTOBUF_REL_DIR})
+    else()
+        message(STATUS "Building protobuf => " ${PROTOBUF_SOURCE_DIR})
+        execute_process(
+                COMMAND "./configure" --prefix=${PROTOBUF_REL_DIR}
+                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" -j2
+                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" install
+                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+        )
+    endif()
+else ()
+    message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
+endif ()
 
 include_directories(${PROTOBUF_REL_DIR}/include)
 
@@ -280,24 +286,30 @@ set(SOURCE_FILES
     ${EVENT_FILES}
     ${CORE_FILES})
 
-find_library(LZ4_LIB_STATIC NAMES liblz4.a)
-find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib)
-find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
-find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
-find_library(BZ2_LIB_STATIC NAMES libbz2.a)
-find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
-file(GLOB EVENT_LIB_STATIC ${LIBEVENT_REL_DIR}/lib)
-find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
+if (APPLE)
+    message(STATUS "Can not find library in non-Linux machine")
+elseif (UNIX)
+    find_library(LZ4_LIB_STATIC NAMES liblz4.a)
+    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib)
+    find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
+    find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
+    find_library(BZ2_LIB_STATIC NAMES libbz2.a)
+    find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
+    file(GLOB EVENT_LIB_STATIC ${LIBEVENT_REL_DIR}/lib)
+    find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
+    set(LIBS ${SUBMODULE_LIBS}
+            ${LZ4_LIB_STATIC}
+            ${PROTOBUF_LIB_STATIC}
+            ${CRYPTOPP_LIB_STATIC}
+            pthread rt ${SNAPPY_LIB_STATIC}
+            z ${BZ2_LIB_STATIC}
+            ${JEMALLOC_LIB_STATIC}
+            ${EVENT_LIB_STATIC}
+            ${BOOST_SYSTEM_LIB_STATIC})
+else ()
+    message(STATUS "Can not find library in non-Linux machine")
+endif ()
 
-set(LIBS ${SUBMODULE_LIBS}
-        ${LZ4_LIB_STATIC}
-        ${PROTOBUF_LIB_STATIC}
-        ${CRYPTOPP_LIB_STATIC}
-        pthread rt ${SNAPPY_LIB_STATIC}
-        z ${BZ2_LIB_STATIC}
-        ${JEMALLOC_LIB_STATIC}
-        ${EVENT_LIB_STATIC}
-        ${BOOST_SYSTEM_LIB_STATIC})
 add_executable(LogCabin ${SOURCE_FILES})
 
 target_link_libraries(LogCabin ${LIBS})
