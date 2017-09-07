@@ -549,6 +549,9 @@ class Tree {
     void
     lremEx(const std::string& path, const std::string& contents);
 
+    Result
+    ltrim(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path

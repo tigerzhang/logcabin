@@ -194,6 +194,13 @@ class ClientImpl {
                  const std::string& contents,
                  const Condition& condition,
                  TimePoint timeout);
+
+    Result ltrim(const std::string& path,
+            const std::string& workingDirectory,
+            const std::string& contents,
+            const Condition& condition,
+            TimePoint timeout);
+
     /**
      * Low-level interface to ServerControl service used by
      * Client/ServerControl.cc.

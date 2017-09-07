@@ -44,7 +44,8 @@ enum class Command {
     PUB,
     RPUSH,
     LPOP,
-    LREM
+    LREM,
+    LTRIM
 };
 
 /**
@@ -159,6 +160,8 @@ class OptionParser {
             command = Command::LPOP;
         } else if (cmdStr == "lrem") {
             command = Command::LREM;
+        } else if (cmdStr == "ltrim") {
+            command = Command::LTRIM;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -426,6 +429,10 @@ main(int argc, char** argv)
             }
             case Command::LREM: {
                 tree.lremEx(path, readStdin());
+                break;
+            }
+            case Command::LTRIM: {
+                tree.ltrim(path, readStdin());
                 break;
             }
         }

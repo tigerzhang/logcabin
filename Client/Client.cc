@@ -522,6 +522,18 @@ Tree::lrem(const std::string& path, const std::string& contents)
             ClientImpl::absTimeout(treeDetails->timeoutNanos));
 }
 
+Result
+Tree::ltrim(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->ltrim(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
 void
 Tree::pubEx(const std::string& path, const std::string& contents)
 {
