@@ -601,6 +601,28 @@ TEST_F(TreeTreeTest, removeDirectory)
      */
 }
 
+TEST_F(TreeTreeTest, lpush)
+{
+    EXPECT_OK(tree.rpush("/r", "foo1"));
+    EXPECT_OK(tree.rpush("/r", "foo2"));
+    std::string contents;
+    EXPECT_OK(tree.read("/r", contents));
+    //FIXME:this case is for current testing purpos,
+    // we should use lrange to read rpushed result
+    EXPECT_EQ("/r:l:0000000:foo1,/r:l:0000001:foo2,", contents);
+
+    EXPECT_OK(tree.lrem("/r", "foo2"));
+    EXPECT_OK(tree.read("/r", contents));
+    //FIXME:this case is for current testing purpos,
+    // we should use lrange to read rpushed result
+    EXPECT_EQ("/r:l:0000000:foo1,", contents);
+
+    std::string popedResult;
+    EXPECT_OK(tree.lpop("/r", popedResult));
+    Result result = tree.read("/r", contents);
+    EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
+}
+
 TEST_F(TreeTreeTest, write)
 {
     EXPECT_EQ(Status::INVALID_ARGUMENT, tree.write("", "").status);

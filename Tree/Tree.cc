@@ -1487,6 +1487,7 @@ Tree::read(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
     Result result;
+    contents = "";
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
