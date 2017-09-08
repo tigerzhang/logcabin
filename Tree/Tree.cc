@@ -453,6 +453,7 @@ void Tree::Init(std::string& path) {
     if (!status.ok()) {
         PANIC("Open rocksdb failed %s", status.ToString().c_str());
     }
+
 #endif // ROCKSDB_FSM_REAL
 
 #ifdef ARDB_FSM
@@ -754,25 +755,40 @@ Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     NOTICE("import backup status: %s", worker_ctx.GetReply().Status().c_str());
 #endif // ROCKSDB_FSM
 #ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    {
+        //drop column
+        ColumnFamilyHandlePtr columnFamilyPtr = getColumnFamilyHandle("cf0", true);
+        rocksdb::ColumnFamilyHandle* pcf = columnFamilyPtr.get();
+        if (NULL == pcf) {
+            PANIC("Get cf failed");
+        }
+        rocksdb::Status status = rdb->DropColumnFamily(pcf);
+        if (!status.ok()) {
+            PANIC("Drop default column family failed: %s", status.ToString().c_str());
+            pcf = NULL;
+        }
+        Reopen();
+    }
+
+    //re init column family, and then insert value into it
+    ColumnFamilyHandlePtr columnFamilyPtr = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = columnFamilyPtr.get();
     if (NULL == pcf) {
         PANIC("Get cf failed");
-    }
-    rocksdb::Status status = rdb->DropColumnFamily(pcf);
-    if (!status.ok()) {
-        PANIC("Drop default column family failed: %s", status.ToString().c_str());
     }
     Snapshot::KeyValue kv;
     std::string error = stream.readMessage(kv);
     while(error.empty()) {
         VERBOSE("load key %s value %s", kv.key().c_str(), kv.value().c_str());
-        rdb->Put(writeOptions, pcf, kv.key(), kv.value());
-        error = stream.readMessage(kv);
+        auto writeResult = rdb->Put(writeOptions, pcf, kv.key(), kv.value());
+        if(writeResult.ok())
+        {
+            error = stream.readMessage(kv);
+        }else{
+            PANIC("Can not load snapshot : %s", writeResult.ToString().c_str());
+        }
     }
     NOTICE("Load snapshot succeed.");
-
-    Reopen();
 
 #endif
 }
@@ -785,6 +801,7 @@ void Tree::Reopen() {
         handlers.erase(handle);
     }
     delete rdb;
+    rdb = NULL;
 
     Init(serverDir);
 }
