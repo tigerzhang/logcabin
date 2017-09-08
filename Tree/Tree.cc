@@ -850,7 +850,11 @@ Tree::makeDirectory(const std::string& symbolicPath)
         PANIC("Get cf failed");
     }
 
-    std::string key = symbolicPath + ":meta";
+    std::string key = symbolicPath ;
+    if(*symbolicPath.end() != '/')
+    {
+        key += '/';
+    }
     rdb->Put(writeOptions, pcf, key, "dir");
 #endif // ROCKSDB_FSM_REAL
     ++numMakeDirectorySuccess;
@@ -862,9 +866,9 @@ Tree::listDirectory(const std::string& symbolicPath,
                     std::vector<std::string>& children) const
 {
     ++numListDirectoryAttempted;
+    children.clear();
     Result result;
 #ifdef MEM_FSM
-    children.clear();
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -910,6 +914,7 @@ Result
 Tree::removeDirectory(const std::string& symbolicPath)
 {
     ++numRemoveDirectoryAttempted;
+    Result result;
 #ifdef FSM_MEM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -946,7 +951,21 @@ Tree::removeDirectory(const std::string& symbolicPath)
         parent->makeDirectory(path.target);
     }
 #endif // FSM_MEM
-    Result result;
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string prefix = symbolicPath;
+    std::string key = symbolicPath;
+    if(*symbolicPath.end() != '/')
+    {
+        key += '/';
+    }
+    rdb->Delete(writeOptions, pcf, key);
+#endif
     ++numRemoveDirectoryDone;
     ++numRemoveDirectorySuccess;
     return result;
