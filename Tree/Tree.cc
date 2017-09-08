@@ -1428,6 +1428,39 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents) {
 }
 
 Result
+Tree::ltrim(const std::string& symbolicPath, const std::string &contents) {
+    ++numLTrimAttempted;
+    Result result;
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    int ltrim_size = atoi(contents.c_str());
+    if (ltrim_size == 0) {
+        result.status = Status::INVALID_ARGUMENT;
+        return result;
+    }
+    std::string prefix = symbolicPath + ":l:";
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    int index_counter = 0;
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+        index_counter++;
+        if (index_counter <= ltrim_size) {
+            continue;
+        }
+        rdb->Delete(writeOptions, pcf, iter->key());
+    }
+    delete iter;
+#endif
+    result.status = Status::OK;
+    ++numLTrimSuccess;
+    return result;
+}
+
+Result
 Tree::read(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;

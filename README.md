@@ -63,6 +63,7 @@ Get the source code:
 Download and build the third party dependencies:
 
     cmake .
+    make prepare
     make -j4
 
 Clean all cmake generated files:

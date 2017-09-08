@@ -437,6 +437,9 @@ class Tree {
     Result
     lrem(const std::string& path, const std::string& contents);
 
+    Result
+    ltrim(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path
@@ -565,6 +568,8 @@ private:
     uint64_t numLPopSuccess;
     uint64_t numLRemAttempted;
     uint64_t numLRemSuccess;
+    uint64_t numLTrimAttempted;
+    uint64_t numLTrimSuccess;
 
 #ifdef ROCKSDB_FSM
     typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;
