@@ -868,7 +868,7 @@ Tree::makeDirectory(const std::string& symbolicPath)
     }
 
     std::string key = symbolicPath ;
-    if(*symbolicPath.end() != '/')
+    if("" == symbolicPath || *symbolicPath.end() != '/')
     {
         key += '/';
     }
@@ -977,7 +977,7 @@ Tree::removeDirectory(const std::string& symbolicPath)
 
     std::string prefix = symbolicPath;
     std::string key = symbolicPath;
-    if(*symbolicPath.end() != '/')
+    if("" == symbolicPath || *symbolicPath.end() != '/')
     {
         key += '/';
     }
@@ -1069,7 +1069,12 @@ Tree::write(const std::string& symbolicPath, const std::string& contents)
 
     rocksdb::Status s;
     std::string meta;
-    s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath + ":meta", &meta);
+    std::string key = symbolicPath;
+    if("" != symbolicPath && *symbolicPath.end() != '/')
+    {
+        key += "/";
+    }
+    s = rdb->Get(rocksdb::ReadOptions(), pcf, key, &meta);
     if (s.ok() && meta == "dir") {
         result.status = Status::TYPE_ERROR;
         result.error = symbolicPath + " is a directory";

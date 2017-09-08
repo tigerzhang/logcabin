@@ -103,3 +103,6 @@ deps/protobuf-2.6.1/src/google/protobuf/stubs/.dirstamp
 deps/protobuf-2.6.1/src/protoc
 deps/protobuf-2.6.1/src/unittest_proto_middleman
 deps/protobuf-2.6.1/stamp-h1
+deps/libevent-2.1.8-stable/autom4te.cache/
+
+Testing/

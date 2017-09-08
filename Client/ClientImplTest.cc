@@ -173,7 +173,7 @@ TEST_F(ClientClientImplExactlyOnceTest, keepAliveThreadMain_TimingSensitive) {
     client.exactlyOnceRPCHelper.keepAliveInterval = milliseconds(2);
     client.exactlyOnceRPCHelper.keepAliveCV.notify_all();
     // in 2ms, 4ms, 6ms, 8ms, 10ms
-    usleep(11000);
+    usleep(12000);
     EXPECT_EQ(6U, mockRPC->requestLog.size()) << disclaimer;
 
     // Disable heartbeat.
