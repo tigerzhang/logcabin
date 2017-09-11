@@ -506,7 +506,7 @@ private:
 
 
     /**
-     * check if the key is expire or not , also clean up the key if it's expired
+     * check if the key is expire or not , also clean up the key if it's expired, this should be called at the begin of all reading reqeust
      * 
      * \param[in] path
      *      The key of which you wanna check if it's expired or not.
@@ -515,6 +515,14 @@ private:
      *      If the key is not expried or doesn't have expire setting, return false
      */
     bool isKeyExpired(const std::string& path) const;
+
+    /**
+     * clean the expire setting on a key, this should be call at the begin of all writing request.
+     * 
+     * \param[in] path
+     *      The key of which you wanna check if it's expired or not.
+     */
+    Result removeExpire(const std::string& path);
 
     /**
      * Resolve the final next-to-last component of the given path (the target's

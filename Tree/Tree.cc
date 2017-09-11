@@ -989,10 +989,33 @@ Tree::removeDirectory(const std::string& symbolicPath)
 }
 
 Result
+Tree::removeExpire(const std::string& symbolicPath)
+{
+    Result result;
+    result.status = Status::OK;
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string expireMeta = symbolicPath + ":e:meta";
+    rdb->Delete(writeOptions, pcf, expireMeta);
+    return result;
+}
+
+Result
 Tree::write(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
     Result result;
+    Result cleanExpireResult;
+    //expire should be flush after writing
+    cleanExpireResult = removeExpire(symbolicPath);
+    if(Status::OK != cleanExpireResult.status)
+    {
+        return cleanExpireResult;
+    }
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1359,8 +1382,8 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents) {
     //TODO:check content, content should be all number
     int32_t expireIn = std::atoi(contents.c_str());
     long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    long expreiAt = now / 1000 + expireIn;
-    std::string expireTimeString = std::to_string((int)expreiAt);
+    long expireAt = now / 1000 + expireIn;
+    std::string expireTimeString = std::to_string((int)expireAt);
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1752,6 +1775,12 @@ Result
 Tree::removeFile(const std::string& symbolicPath)
 {
     ++numRemoveFileAttempted;
+    Result cleanExpireResult;
+    cleanExpireResult = this->removeExpire(symbolicPath);
+    if(cleanExpireResult.status != Status::OK)
+    {
+        return cleanExpireResult;
+    }
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)

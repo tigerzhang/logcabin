@@ -673,13 +673,26 @@ TEST_F(TreeTreeTest, expire)
     EXPECT_OK(tree.write("/a", "foo"));
     EXPECT_OK(tree.read("/a", contents));
     EXPECT_EQ("foo", contents);
+    //set to expire in 2 seconds
     EXPECT_OK(tree.expire("/a", "2"));
     
     sleep(1);
+    //should not expire in 1 second
     EXPECT_OK(tree.read("/a", contents));
+
+    //write again to it should flush the expire setting
+    EXPECT_OK(tree.write("/a", "foo"));
+    sleep(2);
+    //so you can get it after 2 second
+    EXPECT_OK(tree.read("/a", contents));
+
+    //set to expire in 1 second
+    EXPECT_OK(tree.expire("/a", "1"));
+
     sleep(2);
     Result result;
 
+    //should expire now
     result = tree.read("/a", contents);
     
     EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
