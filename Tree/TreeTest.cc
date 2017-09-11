@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 #include <fstream>
+#include <unistd.h>
 
 #include "Core/StringUtil.h"
 #include "Tree/Tree.h"
@@ -664,6 +665,24 @@ TEST_F(TreeTreeTest, read)
     result = tree.read("/c", contents);
     EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
     EXPECT_EQ("/c does not exist", result.error);
+}
+
+TEST_F(TreeTreeTest, expire)
+{
+    std::string contents;
+    EXPECT_OK(tree.write("/a", "foo"));
+    EXPECT_OK(tree.read("/a", contents));
+    EXPECT_EQ("foo", contents);
+    EXPECT_OK(tree.expire("/a", "2"));
+    
+    sleep(1);
+    EXPECT_OK(tree.read("/a", contents));
+    sleep(2);
+    Result result;
+
+    result = tree.read("/a", contents);
+    
+    EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
 }
 
 TEST_F(TreeTreeTest, removeFile)

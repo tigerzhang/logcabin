@@ -1353,6 +1353,42 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
 }
 
 Result
+Tree::expire(const std::string &symbolicPath, const std::string &contents) {
+    ++numExpireAttempted;
+    Result result;
+    //TODO:check content, content should be all number
+    int32_t expireIn = std::atoi(contents.c_str());
+    long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    long expreiAt = now / 1000 + expireIn;
+    std::string expireTimeString = std::to_string((int)expreiAt);
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    rocksdb::Status s;
+    std::string keyMeta = symbolicPath + ":e:meta";
+
+    //stage one, check key exists
+    std::string meta;
+    s = rdb->Get(readOptions, pcf, symbolicPath, &meta);
+    if (s.ok()) {
+        rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
+        //should maintain a list to make sure it can hold in memory
+        //but currently it's ok to stop here, let's make it work first
+    }else{
+        result.status = Status::LOOKUP_ERROR;
+        return result;
+    }
+
+#endif
+    ++numExpireSuccess;
+    return result;
+}
+
+Result
 Tree::rpush(const std::string &symbolicPath, const std::string &contents) {
     ++numRPushAttempted;
     Result result;
@@ -1482,12 +1518,45 @@ Tree::ltrim(const std::string& symbolicPath, const std::string &contents) {
     return result;
 }
 
+bool Tree::isKeyExpired(const std::string& path) const
+{
+    std::string metaKey = path + ":e:meta";
+    
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    iter->Seek(metaKey);
+    if(iter->Valid() && iter->key().ToString(false) == metaKey)
+    {
+        std::string expireAtString  = iter->value().ToString(false);
+        long expireAt = std::atoi(expireAtString.c_str());
+        long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        long nowInSecond = now / 1000;
+        if(nowInSecond > expireAt)
+        {
+            //should delete this log
+            return true;
+        }
+    }
+
+    return false;
+}
+
 Result
 Tree::read(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
     Result result;
     contents = "";
+    if(isKeyExpired(symbolicPath))
+    {
+        result.status = Status::LOOKUP_ERROR;
+        result.error = "Key expired";
+        return result; 
+    }
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)

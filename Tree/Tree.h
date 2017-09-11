@@ -440,6 +440,8 @@ class Tree {
     Result
     ltrim(const std::string& path, const std::string& contents);
 
+    Result
+    expire(const std::string& path,const std::string& contents);
     /**
      * Get the value of a file.
      * \param path
@@ -501,6 +503,18 @@ private:
     Result
     normalLookup(const Internal::Path& path,
                  Internal::Directory** parent);
+
+
+    /**
+     * check if the key is expire or not , also clean up the key if it's expired
+     * 
+     * \param[in] path
+     *      The key of which you wanna check if it's expired or not.
+     * \return
+     *      If the key is expired, return true,
+     *      If the key is not expried or doesn't have expire setting, return false
+     */
+    bool isKeyExpired(const std::string& path) const;
 
     /**
      * Resolve the final next-to-last component of the given path (the target's
@@ -564,6 +578,8 @@ private:
 
     uint64_t numRPushAttempted;
     uint64_t numRPushSuccess;
+    uint64_t numExpireAttempted;
+    uint64_t numExpireSuccess;
     uint64_t numLPopAttempted;
     uint64_t numLPopSuccess;
     uint64_t numLRemAttempted;

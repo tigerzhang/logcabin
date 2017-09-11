@@ -351,6 +351,7 @@ message ReadWriteTree {
         optional RemoveDirectory lpop = 13;
         optional Write lrem = 14;
         optional Write ltrim = 15;
+        optional Write expire = 16;
     }
     message Response {
         optional Status status = 1;
