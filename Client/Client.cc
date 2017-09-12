@@ -476,6 +476,18 @@ Tree::rpushEx(const std::string& path, const std::string& contents)
 }
 
 Result
+Tree::expire(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->expire(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
+Result
 Tree::rpush(const std::string& path, const std::string& contents)
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();

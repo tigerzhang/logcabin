@@ -45,7 +45,8 @@ enum class Command {
     RPUSH,
     LPOP,
     LREM,
-    LTRIM
+    LTRIM,
+    EXPIRE
 };
 
 /**
@@ -156,6 +157,8 @@ class OptionParser {
             command = Command::PUB;
         } else if (cmdStr == "rpush") {
             command = Command::RPUSH;
+        } else if (cmdStr == "expire") {
+            command = Command::EXPIRE;
         } else if (cmdStr == "lpop") {
             command = Command::LPOP;
         } else if (cmdStr == "lrem") {
@@ -423,8 +426,12 @@ main(int argc, char** argv)
                 tree.rpushEx(path, readStdin());
                 break;
             }
+            case Command::EXPIRE: {
+                tree.expire(path, readStdin());
+                break;
+            }
             case Command::LPOP: {
-                tree.lpopEx(path, "");
+                tree.lpop(path, "");
                 break;
             }
             case Command::LREM: {

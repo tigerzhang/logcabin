@@ -153,7 +153,23 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
 {
     PRELUDE(StateMachineCommand);
     Core::Buffer cmdBuffer;
-    rpc.getRequest(cmdBuffer);
+    if(request.has_tree() && request.tree().has_expire())
+    {
+        //expire has to be modified to unix timestamp before it's replicated
+        std::string contents = request.tree().expire().contents();
+        int32_t expireIn = std::atoi(contents.c_str());
+        long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        long expireAt = now / 1000 + expireIn;
+        std::string expireTimeString = std::to_string((int)expireAt);
+
+        //append back to request
+        request.mutable_tree()->mutable_expire()->mutable_contents()->swap(expireTimeString);
+        Core::ProtoBuf::serialize(request, cmdBuffer);
+    }
+    else
+    {
+        rpc.getRequest(cmdBuffer);
+    }
     std::pair<Result, uint64_t> result = globals.raft->replicate(cmdBuffer);
     if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {
         Protocol::Client::Error error;
@@ -241,3 +257,4 @@ ClientService::verifyRecipient(RPC::ServerRPC rpc)
 
 } // namespace LogCabin::Server
 } // namespace LogCabin
+

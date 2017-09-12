@@ -1379,11 +1379,8 @@ Result
 Tree::expire(const std::string &symbolicPath, const std::string &contents) {
     ++numExpireAttempted;
     Result result;
+    std::string expireTimeString = contents;
     //TODO:check content, content should be all number
-    int32_t expireIn = std::atoi(contents.c_str());
-    long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    long expireAt = now / 1000 + expireIn;
-    std::string expireTimeString = std::to_string((int)expireAt);
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1560,7 +1557,7 @@ bool Tree::isKeyExpired(const std::string& path) const
         long nowInSecond = now / 1000;
         if(nowInSecond > expireAt)
         {
-            //should delete this log
+            //append a delete data log
             return true;
         }
     }

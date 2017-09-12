@@ -540,6 +540,9 @@ class Tree {
     rpushEx(const std::string& path, const std::string& contents);
 
     Result
+    expire(const std::string& path, const std::string& contents);
+
+    Result
     lpop(const std::string& path, const std::string& contents);
     void
     lpopEx(const std::string& path, const std::string& contents);

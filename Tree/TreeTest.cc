@@ -674,7 +674,10 @@ TEST_F(TreeTreeTest, expire)
     EXPECT_OK(tree.read("/a", contents));
     EXPECT_EQ("foo", contents);
     //set to expire in 2 seconds
-    EXPECT_OK(tree.expire("/a", "2"));
+    long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    long nowInSecond = now / 1000;
+
+    EXPECT_OK(tree.expire("/a", std::to_string(nowInSecond + 2)));
     
     sleep(1);
     //should not expire in 1 second
@@ -687,7 +690,9 @@ TEST_F(TreeTreeTest, expire)
     EXPECT_OK(tree.read("/a", contents));
 
     //set to expire in 1 second
-    EXPECT_OK(tree.expire("/a", "1"));
+    now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    nowInSecond = now / 1000;
+    EXPECT_OK(tree.expire("/a", std::to_string(nowInSecond + 1)));
 
     sleep(2);
     Result result;
