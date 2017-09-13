@@ -1379,6 +1379,7 @@ void Tree::appendExpireKeyEntry(const std::string &path, const uint32_t expireAt
 {
     static unsigned long rpcNumberForExpireKeyEntry = 0;
     static unsigned long firstOutstandingRPCForExpireKeyEntry = 0;
+    VERBOSE("now append clean up entry %s, %d, %d", path.c_str(), rpcNumberForExpireKeyEntry, firstOutstandingRPCForExpireKeyEntry);
     //this function should not be retry!
     Protocol::Client::StateMachineCommand::Request command;
     command.mutable_tree()->mutable_expire()->set_path(path);
@@ -1408,52 +1409,129 @@ Tree::expire(const std::string &symbolicPath, const uint32_t &contents, const ui
     }
 
     rocksdb::Status s;
-    std::string keyMeta = symbolicPath + ":e:meta";
-
-    if(op == Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS)
+    std::string originKeyMeta = symbolicPath + ":meta";
+    std::string originKeyMetaInfo;
+    rocksdb::Status originKeyMetaGetResult = rdb->Get(readOptions, pcf, originKeyMeta, &originKeyMetaInfo);
+    if(originKeyMetaGetResult.ok())
     {
-        //this is a clean request
+        VERBOSE("now clean up complicate key:%s", symbolicPath.c_str());
+        //this is not a simple kv key, should handle it as complicate data struct
+        std::string keyMeta = symbolicPath + ":e:meta";
+        //but the basic routine is samesame
+        if(op == Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS)
+        {
+            //this is a clean request
 
-        //stage one, check meta exists
-        std::string meta;
-        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
-        if (s.ok()) {
-            //stage two check expireAt, make sure they are the same
-            if(meta == expireTimeString)
-            {
-                VERBOSE("apply expire clean up");
-                //stage three, clean up expire meta and key
-                rdb->Delete(writeOptions, pcf, symbolicPath);
-                rdb->Delete(writeOptions, pcf, keyMeta);
+            //stage one, check meta exists
+            std::string meta;
+            s = rdb->Get(readOptions, pcf, keyMeta, &meta);
+            if (s.ok()) {
+                //stage two check expireAt, make sure they are the same
+                if(meta == expireTimeString)
+                {
+                    VERBOSE("apply expire clean up");
+                    //stage three, clean up expire meta and key
+                    if(originKeyMetaInfo.substr(0, 1) == "l")
+                    {
+                        //this is a list
+                        std::string prefix = symbolicPath + ":l:";
+                        rocksdb::Status deleteResult;
+                        auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+                        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+                            deleteResult = rdb->Delete(writeOptions, pcf, iter->key());
+                            if(!deleteResult.ok())
+                            {
+                                PANIC("can not clean list elements");
+                            }
+                        }
+                        delete iter;
+                        deleteResult = rdb->Delete(writeOptions, pcf, originKeyMeta);
+                        if(!deleteResult.ok())
+                        {
+                            PANIC("can not delete origin key meta");
+                        }
+                        deleteResult = rdb->Delete(writeOptions, pcf, keyMeta);
+                        if(!deleteResult.ok())
+                        {
+                            PANIC("can not delete expire key meta");
+                        }
+                        result.status = Status::OK;
+                        return result;
+                    }
+                    
+                }
+                else
+                {
+                    //this might be an expired request, don't apply
+                    result.status = Status::OK;
+                    return result;
+                }
+            }else{
+                //this might be a duplicate request
                 result.status = Status::OK;
                 return result;
             }
-            else
-            {
-                //this might be an expired request, don't apply
-                result.status = Status::OK;
-                return result;
-            }
-        }else{
-            //this might be a duplicate request
-            result.status = Status::OK;
-            return result;
+        }
+        else
+        {
+            //no need to check key exists, this is a complicate key, so it must be exists
+            std::string content;
+            rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
+            //should maintain a list to make sure it can hold in memory
+            //but currently it's ok to stop here, let's make it work first
         }
     }
     else
     {
-        //stage one, check key exists
-        std::string content;
-        s = rdb->Get(readOptions, pcf, symbolicPath, &content);
-        if (s.ok()) {
-            rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
-            //should maintain a list to make sure it can hold in memory
-            //but currently it's ok to stop here, let's make it work first
-        }else{
-            result.status = Status::LOOKUP_ERROR;
-            return result;
+        VERBOSE("now clean up simple key:%s", symbolicPath.c_str());
+        std::string keyMeta = symbolicPath + ":e:meta";
+
+        if(op == Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS)
+        {
+            //this is a clean request
+
+            //stage one, check meta exists
+            std::string meta;
+            s = rdb->Get(readOptions, pcf, keyMeta, &meta);
+            if (s.ok()) {
+                //stage two check expireAt, make sure they are the same
+                if(meta == expireTimeString)
+                {
+                    VERBOSE("apply expire clean up");
+                    //stage three, clean up expire meta and key
+                    rdb->Delete(writeOptions, pcf, symbolicPath);
+                    rdb->Delete(writeOptions, pcf, keyMeta);
+                    result.status = Status::OK;
+                    return result;
+                }
+                else
+                {
+                    //this might be an expired request, don't apply
+                    result.status = Status::OK;
+                    return result;
+                }
+            }else{
+                //this might be a duplicate request
+                result.status = Status::OK;
+                return result;
+            }
+        }
+        else
+        {
+            //stage one, check key exists
+            std::string content;
+            s = rdb->Get(readOptions, pcf, symbolicPath, &content);
+            if (s.ok()) {
+                rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
+                //should maintain a list to make sure it can hold in memory
+                //but currently it's ok to stop here, let's make it work first
+            }else{
+                result.status = Status::LOOKUP_ERROR;
+                return result;
+            }
         }
     }
+
 
 #endif
     ++numExpireSuccess;
