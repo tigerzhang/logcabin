@@ -677,7 +677,7 @@ TEST_F(TreeTreeTest, expire)
     long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     long nowInSecond = now / 1000;
 
-    EXPECT_OK(tree.expire("/a", std::to_string(nowInSecond + 2)));
+    EXPECT_OK(tree.expire("/a", nowInSecond + 2, 2));
     
     sleep(1);
     //should not expire in 1 second
@@ -692,7 +692,7 @@ TEST_F(TreeTreeTest, expire)
     //set to expire in 1 second
     now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     nowInSecond = now / 1000;
-    EXPECT_OK(tree.expire("/a", std::to_string(nowInSecond + 1)));
+    EXPECT_OK(tree.expire("/a", nowInSecond + 1, 2));
 
     sleep(2);
     Result result;

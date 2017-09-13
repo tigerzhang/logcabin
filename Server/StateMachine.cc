@@ -92,7 +92,9 @@ StateMachine::StateMachine(std::shared_ptr<RaftConsensus> consensus,
     , snapshotThread()
     , snapshotWatchdogThread()
 {
-//    tree.setRaft(consensus.get());
+#ifdef ROCKSDB_FSM
+    tree.setRaft(consensus.get());
+#endif
     tree.Init(consensus->storageLayout.serverDir.path);
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
@@ -296,7 +298,6 @@ StateMachine::setInhibit(std::chrono::nanoseconds duration)
     snapshotSuggested.notify_all();
 }
 
-
 ////////// StateMachine private methods //////////
 
 void
@@ -311,9 +312,9 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
     if (command.has_tree()) {
         PC::ExactlyOnceRPCInfo rpcInfo = command.tree().exactly_once();
         auto it = sessions.find(rpcInfo.client_id());
-        if (it == sessions.end()) {
+        if (rpcInfo.client_id() != 0 && it == sessions.end()) {
             // session does not exist
-        } else {
+        } else if(it != sessions.end()){
             // session exists
             Session& session = it->second;
             expireResponses(session, rpcInfo.first_outstanding_rpc());
@@ -333,6 +334,13 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
                     // response exists, do not re-apply
                 }
             }
+        } else {
+            //client id = 0, interal session
+            VERBOSE("get zero clientid, just apply");
+            Session& session = sessions.insert({0, {}}).first->second;
+            session.lastModified = entry.clusterTime;
+            //and then do it again
+            return apply(entry);
         }
     } else if (command.has_open_session()) {
         uint64_t clientId = entry.index;
@@ -396,6 +404,7 @@ StateMachine::applyThreadMain()
                 case RaftConsensus::Entry::SKIP:
                     break;
                 case RaftConsensus::Entry::DATA:
+                    VERBOSE("now apply one data entry");
                     apply(entry);
                     break;
                 case RaftConsensus::Entry::SNAPSHOT:

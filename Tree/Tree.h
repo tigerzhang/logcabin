@@ -441,7 +441,7 @@ class Tree {
     ltrim(const std::string& path, const std::string& contents);
 
     Result
-    expire(const std::string& path,const std::string& contents);
+    expire(const std::string& path,const uint32_t& expireAt, const uint32_t op);
     /**
      * Get the value of a file.
      * \param path
@@ -515,6 +515,16 @@ private:
      *      If the key is not expried or doesn't have expire setting, return false
      */
     bool isKeyExpired(const std::string& path) const;
+
+    /**
+     * Append an expire at request to the log entry.
+     * \param path
+     *      the path of the key.
+     * \param expireAt
+     *      the origin expireAt time.
+     */
+    void appendExpireKeyEntry(const std::string &path, const uint32_t expireAt) const;
+
 
     /**
      * clean the expire setting on a key, this should be call at the begin of all writing request.
@@ -619,7 +629,7 @@ private:
 #endif // ROCKSDB_FSM
 
     void Reopen();
-};
+}; //class Locabin::Tree::Tree
 
 
 } // namespace LogCabin::Tree

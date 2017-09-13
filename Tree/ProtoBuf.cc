@@ -104,7 +104,8 @@ readWriteTreeRPC(Tree& tree,
                           request.ltrim().contents());
     } else if (request.has_expire()) {
         result = tree.expire(request.expire().path(),
-                          request.expire().contents());
+                          request.expire().expire(),
+                          request.expire().operation());
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

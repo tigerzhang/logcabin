@@ -1375,11 +1375,30 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
     return result;
 }
 
+void Tree::appendExpireKeyEntry(const std::string &path, const uint32_t expireAt) const
+{
+    static unsigned long rpcNumberForExpireKeyEntry = 0;
+    static unsigned long firstOutstandingRPCForExpireKeyEntry = 0;
+    //this function should not be retry!
+    Protocol::Client::StateMachineCommand::Request command;
+    command.mutable_tree()->mutable_expire()->set_path(path);
+    command.mutable_tree()->mutable_expire()->set_operation(LogCabin::Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS);
+    command.mutable_tree()->mutable_expire()->set_expire(expireAt);
+    command.mutable_tree()->mutable_exactly_once()->set_client_id(0);
+    command.mutable_tree()->mutable_exactly_once()->set_rpc_number(++rpcNumberForExpireKeyEntry);
+    command.mutable_tree()->mutable_exactly_once()->set_first_outstanding_rpc(++firstOutstandingRPCForExpireKeyEntry);
+    Core::Buffer cmdBuffer;
+    Core::ProtoBuf::serialize(command, cmdBuffer);
+    //this make the Tool compile fail, but it's ok in current stage
+    raft->replicate(cmdBuffer);
+}
+
 Result
-Tree::expire(const std::string &symbolicPath, const std::string &contents) {
+Tree::expire(const std::string &symbolicPath, const uint32_t &contents, const uint32_t op) {
     ++numExpireAttempted;
     Result result;
-    std::string expireTimeString = contents;
+    //TODO: you should save this as int to save storage, but let's make it simple first
+    std::string expireTimeString = std::to_string(contents);
     //TODO:check content, content should be all number
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
@@ -1391,16 +1410,49 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents) {
     rocksdb::Status s;
     std::string keyMeta = symbolicPath + ":e:meta";
 
-    //stage one, check key exists
-    std::string meta;
-    s = rdb->Get(readOptions, pcf, symbolicPath, &meta);
-    if (s.ok()) {
-        rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
-        //should maintain a list to make sure it can hold in memory
-        //but currently it's ok to stop here, let's make it work first
-    }else{
-        result.status = Status::LOOKUP_ERROR;
-        return result;
+    if(op == Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS)
+    {
+        //this is a clean request
+
+        //stage one, check meta exists
+        std::string meta;
+        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
+        if (s.ok()) {
+            //stage two check expireAt, make sure they are the same
+            if(meta == expireTimeString)
+            {
+                VERBOSE("apply expire clean up");
+                //stage three, clean up expire meta and key
+                rdb->Delete(writeOptions, pcf, symbolicPath);
+                rdb->Delete(writeOptions, pcf, keyMeta);
+                result.status = Status::OK;
+                return result;
+            }
+            else
+            {
+                //this might be an expired request, don't apply
+                result.status = Status::OK;
+                return result;
+            }
+        }else{
+            //this might be a duplicate request
+            result.status = Status::OK;
+            return result;
+        }
+    }
+    else
+    {
+        //stage one, check key exists
+        std::string content;
+        s = rdb->Get(readOptions, pcf, symbolicPath, &content);
+        if (s.ok()) {
+            rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
+            //should maintain a list to make sure it can hold in memory
+            //but currently it's ok to stop here, let's make it work first
+        }else{
+            result.status = Status::LOOKUP_ERROR;
+            return result;
+        }
     }
 
 #endif
@@ -1547,17 +1599,18 @@ bool Tree::isKeyExpired(const std::string& path) const
     if (NULL == pcf) {
         PANIC("Get cf failed");
     }
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    iter->Seek(metaKey);
-    if(iter->Valid() && iter->key().ToString(false) == metaKey)
+    std::string contents;
+    auto getRdbResult = rdb->Get(rocksdb::ReadOptions(), pcf, metaKey, &contents);
+    if(getRdbResult.ok())
     {
-        std::string expireAtString  = iter->value().ToString(false);
+        std::string expireAtString  = contents;
         long expireAt = std::atoi(expireAtString.c_str());
         long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         long nowInSecond = now / 1000;
         if(nowInSecond > expireAt)
         {
             //append a delete data log
+            appendExpireKeyEntry(path, (uint32_t)expireAt);
             return true;
         }
     }

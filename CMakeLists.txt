@@ -328,7 +328,9 @@ include_directories(${LIBEVENT_REL_DIR}/include
 add_library(logcabin STATIC
         ${CLIENT_FILES}
         ${TREE_FILES}
+        ${SERVER_FILES}
         ${ProtocolProtoSources}
+        ${STORAGE_FILES}
         ${RPC_FILES}
         ${EVENT_FILES}
         ${CORE_FILES}
