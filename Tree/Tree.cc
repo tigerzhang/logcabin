@@ -987,6 +987,24 @@ Tree::removeDirectory(const std::string& symbolicPath)
     ++numRemoveDirectorySuccess;
     return result;
 }
+Result Tree::removeExpireSetting(const std::string& path)
+{
+    Result s;
+    std::string expireKeyMeta = path + ":e:meta";
+
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+    VERBOSE("now delete exprie");
+    auto deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
+    if(!deleteResult.ok())
+    {
+        PANIC("delete expire meta failed");
+    }
+    return s;
+}
     
 Result Tree::cleanExpiredKeys(const std::string& path)
 {
@@ -1031,20 +1049,19 @@ Result Tree::cleanExpiredKeys(const std::string& path)
             {
                 PANIC("delete meta of list fail");
             }
-            VERBOSE("now delete exprie");
-            deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
-            if(!deleteResult.ok())
-            {
-                PANIC("delete expire meta failed");
-            }
             delete rdbIter;
         }
     }
     else
     {
         //this is normal kv, just delete it
-        rdb->Delete(writeOptions, pcf, expireKeyMeta);
         rdb->Delete(writeOptions, pcf, path);
+    }
+    VERBOSE("now delete exprie");
+    auto deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
+    if(!deleteResult.ok())
+    {
+        PANIC("delete expire meta failed");
     }
     return s;
 }
@@ -1056,7 +1073,10 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
     Result result;
     Result cleanExpireResult;
     //expire should be flush after writing
-    isKeyExpired(symbolicPath, requestTime);
+    if(!isKeyExpired(symbolicPath, requestTime))
+    {
+        removeExpireSetting(symbolicPath);
+    }
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1475,7 +1495,10 @@ Result
 Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numRPushAttempted;
     Result result;
-    isKeyExpired(symbolicPath, requestTime);
+    if(!isKeyExpired(symbolicPath, requestTime))
+    {
+        removeExpireSetting(symbolicPath);
+    }
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1618,9 +1641,7 @@ bool Tree::isKeyExpired(const std::string& path, int64_t requestTime)
         std::string expireAtString  = contents;
         long expireAt = std::atoi(expireAtString.c_str());
 
-        auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-        long now = timeSpec.tv_sec;
-        if(now > expireAt)
+        if(requestTime > expireAt)
         {
             //append a delete data log
             cleanExpiredKeys(path);

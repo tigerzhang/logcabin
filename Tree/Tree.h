@@ -524,6 +524,7 @@ private:
      */
     Result cleanExpiredKeys(const std::string& path);
 
+    Result removeExpireSetting(const std::string& path);
     /**
      * Resolve the final next-to-last component of the given path (the target's
      * parent) -- const version.
