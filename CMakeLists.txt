@@ -9,14 +9,36 @@ enable_testing()
 set(THIRD_PARTY_DEPS_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/deps)
 set(THIRD_PARTY_LIBS_REL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/third_party)
 
-message(STATUS "Create 3rd libs release directory: " ${THIRD_PARTY_LIBS_REL_DIR})
+# Vars for building gtest
+set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
+set(GTEST_LIB_NAME libgtest.a)
+set(GTEST_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
+set(GTEST_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
 
-execute_process(COMMAND "nproc" OUTPUT_VARIABLE PROCESSOR_NUM)
-execute_process(COMMAND "mkdir" -p ${THIRD_PARTY_LIBS_REL_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+# Vars for building rocksdb
+set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
+set(ROCKSDB_LIB_NAME librocksdb.a)
+set(ROCKSDB_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
+set(ROCKSDB_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
+
+# Vars for building libevent
+set(LIBEVENT_SOURCE_DIR_NAME libevent-2.1.8-stable)
+set(LIBEVENT_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
+set(LIBEVENT_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
+
+# Vars for building protobuf
+set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
+set(PROTOBUF_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+set(PROTOBUF_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
 
 if (APPLE)
     message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
 elseif (UNIX)
+    message(STATUS "Create 3rd libs release directory: " ${THIRD_PARTY_LIBS_REL_DIR})
+    execute_process(COMMAND "nproc" OUTPUT_VARIABLE PROCESSOR_NUM)
+    execute_process(COMMAND "mkdir" -p ${THIRD_PARTY_LIBS_REL_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
     # install basic dependecies
     set(DEPENDENCIES lz4 jemalloc crypto++ snappy bz2 pthread-stubs0 boost-all msgpack)
     foreach(Dep ${DEPENDENCIES})
@@ -28,12 +50,7 @@ elseif (UNIX)
         endif()
     endforeach(Dep)
 
-    # builds rocksdb
-    set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
-    set(ROCKSDB_LIB_NAME librocksdb.a)
-    set(ROCKSDB_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
-    set(ROCKSDB_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${ROCKSDB_SOURCE_DIR_NAME})
-
+    # building rocksdb
     if (EXISTS ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
         message(STATUS "Use: " ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
     else()
@@ -52,12 +69,7 @@ elseif (UNIX)
         )
     endif()
 
-    # build gtest
-    set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
-    set(GTEST_LIB_NAME libgtest.a)
-    set(GTEST_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
-    set(GTEST_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
-
+    # building gtest
     if (EXISTS ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
         message(STATUS "Use: " ${GTEST_REL_DIR}/${GTEST_LIB_NAME})
     else()
@@ -80,11 +92,7 @@ elseif (UNIX)
         )
     endif()
 
-    # build libevent
-    set(LIBEVENT_SOURCE_DIR_NAME libevent-2.1.8-stable)
-    set(LIBEVENT_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
-    set(LIBEVENT_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
-
+    # building libevent
     if (EXISTS ${LIBEVENT_REL_DIR})
         message(STATUS "Use: " ${LIBEVENT_REL_DIR})
     else()
@@ -103,12 +111,7 @@ elseif (UNIX)
         )
     endif()
 
-    # build protobuf
-    set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
-    set(PROTOBUF_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
-    set(PROTOBUF_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
-    set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
-
+    # building protobuf
     if (EXISTS ${PROTOBUF_REL_DIR})
         message(STATUS "Use: " ${PROTOBUF_REL_DIR})
     else()
