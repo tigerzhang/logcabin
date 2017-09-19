@@ -987,21 +987,66 @@ Tree::removeDirectory(const std::string& symbolicPath)
     ++numRemoveDirectorySuccess;
     return result;
 }
-
-Result
-Tree::removeExpire(const std::string& symbolicPath)
+    
+Result Tree::cleanExpiredKeys(const std::string& path)
 {
-    Result result;
-    result.status = Status::OK;
+    Result s;
+    std::string expireKeyMeta = path + ":e:meta";
+    std::string originKeyMeta = path + ":meta";
+    std::string originKeyMetaInfo;
+
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
     if (NULL == pcf) {
         PANIC("Get cf failed");
     }
+    rocksdb::Status originKeyMetaGetResult = rdb->Get(readOptions, pcf, originKeyMeta, &originKeyMetaInfo);
+    if(originKeyMetaGetResult.ok())
+    {
+        //this is not a simple kv key, should handle it as complicate data struct
+        //but the basic routine is samesame
+        //no need to check key exists, this is a complicate key, so it must be exists
 
-    std::string expireMeta = symbolicPath + ":e:meta";
-    rdb->Delete(writeOptions, pcf, expireMeta);
-    return result;
+
+        //check list
+        if(originKeyMetaInfo.substr(0, 1) == "l")
+        {
+            //this is a list
+            auto listPrefix = path + ":l:";
+            auto rdbIter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+            rdbIter->Seek(listPrefix);
+            for(;rdbIter->Valid() && 
+                    rdbIter->key().starts_with(listPrefix);
+                    rdbIter->Next()) {
+                VERBOSE("now delete one key");
+                auto deleteResult = rdb->Delete(writeOptions, pcf, rdbIter->key());
+                if(!deleteResult.ok())
+                {
+                    PANIC("delete element in list fail");
+                }
+            }
+            VERBOSE("now delete meta");
+            auto deleteResult = rdb->Delete(writeOptions, pcf, originKeyMeta);
+            if(!deleteResult.ok())
+            {
+                PANIC("delete meta of list fail");
+            }
+            VERBOSE("now delete exprie");
+            deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
+            if(!deleteResult.ok())
+            {
+                PANIC("delete expire meta failed");
+            }
+            delete rdbIter;
+        }
+    }
+    else
+    {
+        //this is normal kv, just delete it
+        rdb->Delete(writeOptions, pcf, expireKeyMeta);
+        rdb->Delete(writeOptions, pcf, path);
+    }
+    return s;
 }
 
 Result
@@ -1011,11 +1056,7 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
     Result result;
     Result cleanExpireResult;
     //expire should be flush after writing
-    cleanExpireResult = removeExpire(symbolicPath);
-    if(Status::OK != cleanExpireResult.status)
-    {
-        return cleanExpireResult;
-    }
+    isKeyExpired(symbolicPath, requestTime);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1398,7 +1439,6 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
     rocksdb::Status originKeyMetaGetResult = rdb->Get(readOptions, pcf, originKeyMeta, &originKeyMetaInfo);
     if(originKeyMetaGetResult.ok())
     {
-        VERBOSE("now clean up complicate key:%s", symbolicPath.c_str());
         //this is not a simple kv key, should handle it as complicate data struct
         std::string keyMeta = symbolicPath + ":e:meta";
         //but the basic routine is samesame
@@ -1410,7 +1450,6 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
     }
     else
     {
-        VERBOSE("now clean up simple key:%s", symbolicPath.c_str());
         std::string keyMeta = symbolicPath + ":e:meta";
 
         //stage one, check key exists
@@ -1436,6 +1475,7 @@ Result
 Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numRPushAttempted;
     Result result;
+    isKeyExpired(symbolicPath, requestTime);
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1562,7 +1602,7 @@ Tree::ltrim(const std::string& symbolicPath, const std::string &contents) {
     return result;
 }
 
-bool Tree::isKeyExpired(const std::string& path, int64_t requestTime) const
+bool Tree::isKeyExpired(const std::string& path, int64_t requestTime)
 {
     std::string metaKey = path + ":e:meta";
     
@@ -1577,12 +1617,13 @@ bool Tree::isKeyExpired(const std::string& path, int64_t requestTime) const
     {
         std::string expireAtString  = contents;
         long expireAt = std::atoi(expireAtString.c_str());
-        long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        long nowInSecond = now / 1000;
-        if(nowInSecond > expireAt)
+
+        auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+        long now = timeSpec.tv_sec;
+        if(now > expireAt)
         {
             //append a delete data log
-            removeExpire(path);
+            cleanExpiredKeys(path);
             return true;
         }
     }
@@ -1591,7 +1632,7 @@ bool Tree::isKeyExpired(const std::string& path, int64_t requestTime) const
 }
 
 Result
-Tree::read(const std::string& symbolicPath, std::string& contents) const
+Tree::read(const std::string& symbolicPath, std::string& contents)
 {
     ++numReadAttempted;
     Result result;
@@ -1799,12 +1840,6 @@ Result
 Tree::removeFile(const std::string& symbolicPath)
 {
     ++numRemoveFileAttempted;
-    Result cleanExpireResult;
-    cleanExpireResult = this->removeExpire(symbolicPath);
-    if(cleanExpireResult.status != Status::OK)
-    {
-        return cleanExpireResult;
-    }
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)

@@ -312,9 +312,7 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
     if (command.has_tree()) {
         PC::ExactlyOnceRPCInfo rpcInfo = command.tree().exactly_once();
         auto it = sessions.find(rpcInfo.client_id());
-        if (rpcInfo.client_id() != 0 && it == sessions.end()) {
-            // session does not exist
-        } else if(it != sessions.end()){
+        if(it != sessions.end()){
             // session exists
             Session& session = it->second;
             expireResponses(session, rpcInfo.first_outstanding_rpc());
@@ -334,13 +332,6 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
                     // response exists, do not re-apply
                 }
             }
-        } else {
-            //client id = 0, interal session
-            VERBOSE("get zero clientid, just apply");
-            Session& session = sessions.insert({0, {}}).first->second;
-            session.lastModified = entry.clusterTime;
-            //and then do it again
-            return apply(entry);
         }
     } else if (command.has_open_session()) {
         uint64_t clientId = entry.index;

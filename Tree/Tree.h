@@ -457,7 +457,7 @@ class Tree {
      *       - TYPE_ERROR if path is a directory.
      */
     Result
-    read(const std::string& path, std::string& contents) const;
+    read(const std::string& path, std::string& contents);
 
     Result
     head(const std::string& path, std::string& contents) const;
@@ -514,16 +514,15 @@ private:
      *      If the key is expired, return true,
      *      If the key is not expried or doesn't have expire setting, return false
      */
-    bool isKeyExpired(const std::string& path, int64_t request_time) const;
-
+    bool isKeyExpired(const std::string& path, int64_t request_time);
 
     /**
-     * clean the expire setting on a key, this should be call at the begin of all writing request.
+     * clean the expired keys, this should be call expired key is detected.
      * 
      * \param[in] path
      *      The key of which you wanna check if it's expired or not.
      */
-    Result removeExpire(const std::string& path);
+    Result cleanExpiredKeys(const std::string& path);
 
     /**
      * Resolve the final next-to-last component of the given path (the target's

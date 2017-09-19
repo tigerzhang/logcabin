@@ -353,8 +353,6 @@ message ReadWriteTree {
         optional Write lrem = 14;
         optional Write ltrim = 15;
         optional Write expire = 16;
-
-        //unit : second
         optional int64 request_time = 17;
     }
     message Response {
