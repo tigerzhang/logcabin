@@ -877,7 +877,7 @@ ClientImpl::expire(const std::string& path,
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
     request.mutable_expire()->set_path(realPath);
-    request.mutable_expire()->set_expire(std::atoi(contents.c_str()));
+    request.mutable_expire()->set_contents(contents.c_str());
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);

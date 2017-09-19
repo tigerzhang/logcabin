@@ -417,7 +417,7 @@ class Tree {
      *       - TYPE_ERROR if path exists but is a directory.
      */
     Result
-    write(const std::string& path, const std::string& contents);
+    write(const std::string& path, const std::string& contents,int64_t request_time);
 
     Result
     sadd(const std::string& path, const std::string& contents);
@@ -429,7 +429,7 @@ class Tree {
     pub(const std::string& path, const std::string& contents);
 
     Result
-    rpush(const std::string& path, const std::string& contents);
+    rpush(const std::string& path, const std::string& contents,int64_t request_time);
 
     Result
     lpop(const std::string& path, std::string& contents);
@@ -441,7 +441,7 @@ class Tree {
     ltrim(const std::string& path, const std::string& contents);
 
     Result
-    expire(const std::string& path,const uint32_t& expireAt, const uint32_t op);
+    expire(const std::string& path,const std::string& expire, int64_t request_time);
     /**
      * Get the value of a file.
      * \param path
@@ -514,16 +514,7 @@ private:
      *      If the key is expired, return true,
      *      If the key is not expried or doesn't have expire setting, return false
      */
-    bool isKeyExpired(const std::string& path) const;
-
-    /**
-     * Append an expire at request to the log entry.
-     * \param path
-     *      the path of the key.
-     * \param expireAt
-     *      the origin expireAt time.
-     */
-    void appendExpireKeyEntry(const std::string &path, const uint32_t expireAt) const;
+    bool isKeyExpired(const std::string& path, int64_t request_time) const;
 
 
     /**

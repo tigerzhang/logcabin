@@ -154,19 +154,13 @@ ClientService::stateMachineCommand(RPC::ServerRPC rpc)
     PRELUDE(StateMachineCommand);
     Core::Buffer cmdBuffer;
     if(
-            request.has_tree() && request.tree().has_expire() &&
-            (!request.tree().expire().has_operation() || 
-             request.tree().expire().operation() == Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN )
-            )
+            request.has_tree() && !request.tree().has_request_time() )
     {
-        //expire has to be modified to unix timestamp before it's replicated
-        int32_t expireIn = request.tree().expire().expire();
-        long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        long expireAt = now / 1000 + expireIn;
+        auto s = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+        long now = s.tv_sec;
 
-        //append back to request
-        request.mutable_tree()->mutable_expire()->set_expire((int)expireAt);
-        request.mutable_tree()->mutable_expire()->set_operation(Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_AT);
+        request.mutable_tree()->set_request_time(now);
+
         Core::ProtoBuf::serialize(request, cmdBuffer);
     }
     else

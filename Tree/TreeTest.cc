@@ -277,6 +277,8 @@ TEST(TreeDirectoryTest, removeFile)
 
 TEST(TreeDirectoryTest, dumpSnapshot)
 {
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
     Storage::Layout layout;
     layout.initTemporary();
 
@@ -289,7 +291,7 @@ TEST(TreeDirectoryTest, dumpSnapshot)
     tree.makeDirectory("/e");
     tree.makeDirectory("/f");
     tree.makeDirectory("/f/h");
-    tree.write("/f/g", "rawr");
+    tree.write("/f/g", "rawr", now);
 
     {
 #ifdef MEM_FSM
@@ -436,10 +438,12 @@ class TreeTreeTest : public ::testing::Test {
 TEST_F(TreeTreeTest, dumpSnapshot)
 {
     {
+        auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+        long now = timeSpec.tv_sec;
         Storage::SnapshotFile::Writer writer(layout);
 
 //        tree.startSnapshot(0);
-        tree.write("/c", "foo");
+        tree.write("/c", "foo", now);
         tree.dumpSnapshot(writer);
         writer.save();
     }
@@ -604,8 +608,10 @@ TEST_F(TreeTreeTest, removeDirectory)
 
 TEST_F(TreeTreeTest, lpush)
 {
-    EXPECT_OK(tree.rpush("/r", "foo1"));
-    EXPECT_OK(tree.rpush("/r", "foo2"));
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
+    EXPECT_OK(tree.rpush("/r", "foo1", now));
+    EXPECT_OK(tree.rpush("/r", "foo2", now));
     std::string contents;
     EXPECT_OK(tree.read("/r", contents));
     //FIXME:this case is for current testing purpos,
@@ -626,20 +632,22 @@ TEST_F(TreeTreeTest, lpush)
 
 TEST_F(TreeTreeTest, write)
 {
-    EXPECT_EQ(Status::INVALID_ARGUMENT, tree.write("", "").status);
-    EXPECT_EQ(Status::TYPE_ERROR, tree.write("/", "").status);
-    EXPECT_OK(tree.write("/a", "foo"));
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
+    EXPECT_EQ(Status::INVALID_ARGUMENT, tree.write("", "", now).status);
+    EXPECT_EQ(Status::TYPE_ERROR, tree.write("/", "", now).status);
+    EXPECT_OK(tree.write("/a", "foo", now));
 //    EXPECT_EQ("/ /a", dumpTree(tree));
     std::string contents;
     EXPECT_OK(tree.read("/a", contents));
     EXPECT_EQ("foo", contents);
-    EXPECT_OK(tree.write("/a", "bar"));
+    EXPECT_OK(tree.write("/a", "bar", now));
     EXPECT_OK(tree.read("/a", contents));
     EXPECT_EQ("bar", contents);
 
     EXPECT_OK(tree.makeDirectory("/b"));
     Result result;
-    result = tree.write("/b", "baz");
+    result = tree.write("/b", "baz", now);
     EXPECT_EQ(Status::TYPE_ERROR, result.status);
     EXPECT_EQ("/b is a directory", result.error);
 }
@@ -647,10 +655,12 @@ TEST_F(TreeTreeTest, write)
 TEST_F(TreeTreeTest, read)
 {
     std::string contents;
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
     EXPECT_EQ(Status::INVALID_ARGUMENT, tree.read("", contents).status);
     EXPECT_EQ(Status::TYPE_ERROR, tree.read("/", contents).status);
 
-    EXPECT_OK(tree.write("/a", "foo"));
+    EXPECT_OK(tree.write("/a", "foo", now));
     EXPECT_OK(tree.read("/a", contents));
     EXPECT_EQ("foo", contents);
 
@@ -670,29 +680,31 @@ TEST_F(TreeTreeTest, read)
 TEST_F(TreeTreeTest, expire)
 {
     std::string contents;
-    EXPECT_OK(tree.write("/a", "foo"));
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
+    EXPECT_OK(tree.write("/a", "foo", now));
     EXPECT_OK(tree.read("/a", contents));
     EXPECT_EQ("foo", contents);
     //set to expire in 2 seconds
-    long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    long nowInSecond = now / 1000;
 
-    EXPECT_OK(tree.expire("/a", nowInSecond + 2, 2));
+    EXPECT_OK(tree.expire("/a", "2", now));
     
     sleep(1);
     //should not expire in 1 second
     EXPECT_OK(tree.read("/a", contents));
 
+    timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    now = timeSpec.tv_sec;
     //write again to it should flush the expire setting
-    EXPECT_OK(tree.write("/a", "foo"));
+    EXPECT_OK(tree.write("/a", "foo", now));
     sleep(2);
     //so you can get it after 2 second
     EXPECT_OK(tree.read("/a", contents));
 
     //set to expire in 1 second
-    now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    nowInSecond = now / 1000;
-    EXPECT_OK(tree.expire("/a", nowInSecond + 1, 2));
+    timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    now = timeSpec.tv_sec;
+    EXPECT_OK(tree.expire("/a", "1", now));
 
     sleep(2);
     Result result;
@@ -710,7 +722,9 @@ TEST_F(TreeTreeTest, removeFile)
 
     EXPECT_OK(tree.removeFile("/a"));
 
-    EXPECT_OK(tree.write("/b", "foo"));
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
+    EXPECT_OK(tree.write("/b", "foo", now));
     EXPECT_OK(tree.removeFile("/b"));
     EXPECT_OK(tree.removeFile("/c/d"));
 

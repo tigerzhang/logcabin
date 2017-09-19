@@ -44,7 +44,9 @@ readOnlyTreeRPC(const Tree& tree,
             response.mutable_list_directory()->add_child(*it);
     } else if (request.has_read()) {
         std::string contents;
-        result = tree.read(request.read().path(), contents);
+        result = tree.read(
+                request.read().path(),
+                contents);
         response.mutable_read()->set_contents(contents);
     } else if (request.has_head()) {
         std::string contents;
@@ -74,7 +76,8 @@ readWriteTreeRPC(Tree& tree,
         // condition does not match, skip
     } else if (request.has_rpush()) {
         result = tree.rpush(request.rpush().path(),
-                            request.rpush().contents());
+                            request.rpush().contents(),
+                            request.request_time());
     } else if (request.has_lpop()) {
         result = tree.lpop(request.lpop().path(), contents);
         response.set_error(contents);
@@ -87,7 +90,8 @@ readWriteTreeRPC(Tree& tree,
         result = tree.removeDirectory(request.remove_directory().path());
     } else if (request.has_write()) {
         result = tree.write(request.write().path(),
-                            request.write().contents());
+                            request.write().contents(),
+                            request.request_time());
     } else if (request.has_remove_file()) {
         result = tree.removeFile(request.remove_file().path());
     } else if (request.has_sadd()) {
@@ -104,8 +108,8 @@ readWriteTreeRPC(Tree& tree,
                           request.ltrim().contents());
     } else if (request.has_expire()) {
         result = tree.expire(request.expire().path(),
-                          request.expire().expire(),
-                          request.expire().operation());
+                          request.expire().contents(),
+                          request.request_time());
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());
