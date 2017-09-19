@@ -1391,7 +1391,10 @@ void Tree::appendExpireKeyEntry(const std::string &path, const uint32_t expireAt
     Core::Buffer cmdBuffer;
     Core::ProtoBuf::serialize(command, cmdBuffer);
     //this make the Tool compile fail, but it's ok in current stage
-    raft->replicate(cmdBuffer);
+    if(NULL != raft)
+    {
+        raft->replicate(cmdBuffer);
+    }
 }
 
 Result
