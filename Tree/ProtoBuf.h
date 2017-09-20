@@ -27,7 +27,7 @@ namespace ProtoBuf {
  * Respond to a read-only request to query a Tree.
  */
 void
-readOnlyTreeRPC(const Tree& tree,
+readOnlyTreeRPC(Tree& tree,
                 const Protocol::Client::ReadOnlyTree::Request& request,
                 Protocol::Client::ReadOnlyTree::Response& response);
 

@@ -441,7 +441,7 @@ class Tree {
     ltrim(const std::string& path, const std::string& contents);
 
     Result
-    expire(const std::string& path,const std::string& expire, int64_t request_time);
+    expire(const std::string& path,const std::string& expire, const uint32_t op, int64_t request_time);
     /**
      * Get the value of a file.
      * \param path
@@ -504,18 +504,27 @@ private:
     normalLookup(const Internal::Path& path,
                  Internal::Directory** parent);
 
+    enum KeyExpireStatus{
+        KeyExpireStatusNotExpired,
+        KeyExpireStatusExpired,
+        KeyExpireStatusNotSet,
+    };
+
 
     /**
      * check if the key is expire or not , also clean up the key if it's expired, this should be called at the begin of all reading reqeust
      * 
      * \param[in] path
      *      The key of which you wanna check if it's expired or not.
-     * \return
-     *      If the key is expired, return true,
-     *      If the key is not expried or doesn't have expire setting, return false
+     * \return KeyExpireStatus
      */
-    bool isKeyExpired(const std::string& path, int64_t request_time);
+    KeyExpireStatus isKeyExpired(const std::string& path, int64_t request_time);
 
+    bool checkIsKeyExpiredForWriteRequest(const std::string& path, int64_t request_time);
+
+    bool checkIsKeyExpiredForReadRequest(const std::string& path);
+
+    void appendCleanExpireRequestLog(const std::string& path, const std::string& content);
     /**
      * clean the expired keys, this should be call expired key is detected.
      * 

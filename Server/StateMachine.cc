@@ -123,7 +123,7 @@ StateMachine::~StateMachine()
 
 bool
 StateMachine::query(const Query::Request& request,
-                    Query::Response& response) const
+                    Query::Response& response) 
 {
     std::lock_guard<Core::Mutex> lockGuard(mutex);
     if (request.has_tree()) {
@@ -318,7 +318,9 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
             expireResponses(session, rpcInfo.first_outstanding_rpc());
             if (rpcInfo.rpc_number() < session.firstOutstandingRPC) {
                 // response already discarded, do not re-apply
-            } else {
+            }
+            else
+            {
                 auto inserted = session.responses.insert(
                                                 {rpcInfo.rpc_number(), {}});
                 if (inserted.second) {
@@ -328,10 +330,20 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
                         command.tree(),
                         *inserted.first->second.mutable_tree());
                     session.lastModified = entry.clusterTime;
-                } else {
+                }
+                else {
                     // response exists, do not re-apply
                 }
             }
+        }
+        else if(rpcInfo.client_id() == 0)
+        {
+            //this is an internal request
+            VERBOSE("get zero clientid, just apply");
+            Session& session = sessions.insert({0, {}}).first->second;
+            session.lastModified = entry.clusterTime;
+            //and then do it again
+            return apply(entry);
         }
     } else if (command.has_open_session()) {
         uint64_t clientId = entry.index;

@@ -687,7 +687,7 @@ TEST_F(TreeTreeTest, expire)
     EXPECT_EQ("foo", contents);
     //set to expire in 2 seconds
 
-    EXPECT_OK(tree.expire("/a", "2", now));
+    EXPECT_OK(tree.expire("/a", "2", 1,now));
     
     sleep(1);
     //should not expire in 1 second
@@ -704,7 +704,7 @@ TEST_F(TreeTreeTest, expire)
     //set to expire in 1 second
     timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
     now = timeSpec.tv_sec;
-    EXPECT_OK(tree.expire("/a", "1", now));
+    EXPECT_OK(tree.expire("/a", "1", 1, now));
 
     sleep(2);
     Result result;

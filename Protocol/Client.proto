@@ -316,6 +316,12 @@ message ReadOnlyTree {
     }
 }
 
+enum ExpireOpCode{
+     SET_UP_EXPIRE_IN = 1;
+     CLEAN_UP_EXPIRE_KEYS = 2;
+}
+
+
 /**
  * Read-write Tree state machine command: modifies the hierarchical key-value
  * store and retrieves information from it.
@@ -344,6 +350,15 @@ message ReadWriteTree {
         }
 
         optional RemoveFile remove_file = 6;
+        message Expire{
+            required string path = 1;
+            //unit: second
+            required string contents = 2;
+            //don't set this if you are called from client side,
+            //defalut will be SET_UP_EXPIRE_IN. 
+            //Set to CLEAN_UP_EXPIRE_KEYS to clean the expire, but the expire should be same as the database's data
+            optional ExpireOpCode operation = 3;
+        }
 
         optional Write sadd = 7;
         optional Write srem = 8;
@@ -352,7 +367,7 @@ message ReadWriteTree {
         optional RemoveDirectory lpop = 13;
         optional Write lrem = 14;
         optional Write ltrim = 15;
-        optional Write expire = 16;
+        optional Expire expire = 16;
         optional int64 request_time = 17;
     }
     message Response {

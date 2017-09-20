@@ -25,7 +25,7 @@ namespace ProtoBuf {
 namespace PC = LogCabin::Protocol::Client;
 
 void
-readOnlyTreeRPC(const Tree& tree,
+readOnlyTreeRPC(Tree& tree,
                 const PC::ReadOnlyTree::Request& request,
                 PC::ReadOnlyTree::Response& response)
 {
@@ -107,9 +107,19 @@ readWriteTreeRPC(Tree& tree,
         result = tree.ltrim(request.ltrim().path(),
                           request.ltrim().contents());
     } else if (request.has_expire()) {
+        uint32_t operation = 0;
+        if(request.expire().has_operation())
+        {
+            operation = request.expire().operation();
+        }else
+        {
+            operation = Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN;
+        }
         result = tree.expire(request.expire().path(),
                           request.expire().contents(),
-                          request.request_time());
+                          operation,
+                          request.request_time()
+                          );
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

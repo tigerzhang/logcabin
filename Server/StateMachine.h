@@ -77,7 +77,7 @@ class StateMachine {
      *      Be sure to wait() first!
      */
     bool query(const Query::Request& request,
-               Query::Response& response) const;
+               Query::Response& response) ;
 
     /**
      * Add information about the state machine state to the given structure.
