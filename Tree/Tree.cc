@@ -68,6 +68,37 @@ operator<<(std::ostream& os, Status status)
     return os;
 }
 
+std::vector<std::string>
+split_args(const std::string& input)
+{
+    std::vector<std::string> args;
+    bool token_begin = false;
+    auto token_start = input.begin();
+
+    for (auto it = input.begin(); it != input.end(); ++it) {
+        if (*it == ' ') {
+            if (token_begin) {
+                args.emplace_back(std::string(token_start, it));
+                token_begin = false;
+            } else {
+                continue;
+            }
+        } else {
+            if (token_begin) {
+                continue;
+            } else {
+                token_begin = true;
+                token_start = it;
+            }
+        }
+    }
+    if (token_begin) {
+        args.emplace_back(std::string(token_start, input.end()));
+    }
+
+    return args;
+}
+
 ////////// struct Result //////////
 
 Result::Result()
@@ -1625,28 +1656,51 @@ Tree::ltrim(const std::string& symbolicPath, const std::string &contents) {
     ++numLTrimAttempted;
     Result result;
 #ifdef ROCKSDB_FSM
+    std::vector<std::string> args(std::move(split_args(contents)));
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
     if (NULL == pcf) {
         PANIC("Get cf failed");
     }
 
-    int ltrim_size = atoi(contents.c_str());
-    if (ltrim_size == 0) {
+    if (args.size() != 2) {
+        ERROR("Err wrong number of arguments for ltrim command");
         result.status = Status::INVALID_ARGUMENT;
         return result;
-    }
-    std::string prefix = symbolicPath + ":l:";
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    int index_counter = 0;
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-        index_counter++;
-        if (index_counter <= ltrim_size) {
-            continue;
+    } else {
+        //TODO: start and stop can be negative (following redis implementation)
+        int start = atoi(args[0].c_str());
+        int stop = atoi(args[1].c_str());
+        if (start < 0 || stop < 0) {
+            ERROR("Err wrong type of arguments for ltrim command");
+            result.status = Status::INVALID_ARGUMENT;
+            return result;
         }
-        rdb->Delete(writeOptions, pcf, iter->key());
+
+        VERBOSE("LTRIM: start: %d, stop: %d\n", start, stop);
+
+        if (start == 0) {
+            result.status = Status::INVALID_ARGUMENT;
+            return result;
+        }
+        std::string prefix = symbolicPath + ":l:";
+        auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+        int index = 0;
+        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
+            if (start > stop) {
+                rdb->Delete(writeOptions, pcf, iter->key()); // delete all the keys
+            } else {                                         // keep [start, stop] of list
+                if (index < start) {
+                    rdb->Delete(writeOptions, pcf, iter->key());
+                } else if (index > stop) {
+                    rdb->Delete(writeOptions, pcf, iter->key());
+                } else {
+                    continue;
+                }
+            }
+        }
+        delete iter;
     }
-    delete iter;
 #endif
     result.status = Status::OK;
     ++numLTrimSuccess;
