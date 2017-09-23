@@ -1583,7 +1583,6 @@ Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_
         }
     }
 
-
     char indexStr[8];
     snprintf(indexStr, 8, "%07lu", index);
     std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
@@ -1593,6 +1592,21 @@ Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_
 
     snprintf(indexStr, 8, "%lu", index+1);
     rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
+
+    //TODO: need to be abstract as function
+    std::string listLengthStr;
+    int listLength;
+    std::string keyStoreListLength(symbolicPath + ":c");
+    s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
+    if (s.ok()) {
+        listLength = atoi(listLengthStr.c_str());
+        rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(++listLength));
+        VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
+    } else if (s.IsNotFound()) {
+        VERBOSE("list length initialize to 1\n");
+        rdb->Put(writeOptions, pcf, keyStoreListLength, "1");
+    }
+
 #endif
     ++numRPushSuccess;
     return result;
@@ -1644,6 +1658,22 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents) {
             result.status = Status::OK;
             break;
         }
+    }
+    //TODO: need to be abstract as function
+    std::string listLengthStr;
+    int listLength;
+    rocksdb::Status s;
+    std::string keyStoreListLength(symbolicPath + ":c");
+    s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
+    if (s.ok()) {
+        listLength = atoi(listLengthStr.c_str());
+        listLength--;
+        if (listLength <= 0) {
+            rdb->Delete(writeOptions, pcf, keyStoreListLength);
+        } else {
+            rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(listLength));
+        }
+        VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
     }
     delete iter;
 #endif
@@ -1980,48 +2010,66 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
 #ifdef ROCKSDB_FSM
     result.status = Status::LOOKUP_ERROR;
     result.error = symbolicPath + " does not exist";
+    std::vector<std::string> splittedArgs(std::move(split_args(args)));
 
-    if (symbolicPath == "") {
+    if (splittedArgs.size() != 2) {
+        ERROR("Err wrong number of arguments for ltrim command");
         result.status = Status::INVALID_ARGUMENT;
         return result;
-    }
+    } else {
+        //TODO: start and stop can be negative (following redis implementation)
+        int start = atoi(splittedArgs[0].c_str());
+        int stop = atoi(splittedArgs[1].c_str());
+        if (start < 0 || stop < 0) {
+            ERROR("Err wrong type of arguments for lrange command");
+            result.status = Status::INVALID_ARGUMENT;
+            return result;
+        }
 
-    if (symbolicPath == "/") {
-        // write to a directory, return TYPE_ERROR
-        result.status = Status::TYPE_ERROR;
-        return result;
-    }
+        VERBOSE("LRANGE: start: %d, stop: %d\n", start, stop);
 
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
+        if (symbolicPath == "") {
+            result.status = Status::INVALID_ARGUMENT;
+            return result;
+        }
 
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
+        if (symbolicPath == "/") {
+            // write to a directory, return TYPE_ERROR
+            result.status = Status::TYPE_ERROR;
+            return result;
+        }
 
-    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &output);
-    if (s.ok()) {
-        result.status = Status::OK;
-    }
+        Path path(symbolicPath);
+        if (path.result.status != Status::OK)
+            return path.result;
 
-    std::string prefix = symbolicPath + ":s:";
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-        output += iter->key().ToString().substr(prefix.length()) + ",";
-        result.status = Status::OK;
-    }
-    delete iter;
+        ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+        rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+        if (NULL == pcf) {
+            PANIC("Get cf failed");
+        }
 
-    prefix = symbolicPath + ":l:";
-    iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-        output += iter->key().ToString() + ":" + iter->value().ToString() + ",";
-        result.status = Status::OK;
+        rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &output);
+        if (s.ok()) {
+            result.status = Status::OK;
+        }
+
+        std::string prefix = symbolicPath + ":s:";
+        auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+            output += iter->key().ToString().substr(prefix.length()) + ",";
+            result.status = Status::OK;
+        }
+        delete iter;
+
+        prefix = symbolicPath + ":l:";
+        iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+            output += iter->key().ToString() + ":" + iter->value().ToString() + ",";
+            result.status = Status::OK;
+        }
+        delete iter;
     }
-    delete iter;
 #endif // ROCKSDB_FSM_REAL
 
     ++numLRANGESuccess;
