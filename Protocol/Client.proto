@@ -300,6 +300,11 @@ message ReadOnlyTree {
             required string path = 1;
         }
         optional Head head = 6;
+        message ReadWithArgs {
+            required string path = 1;
+            required string args = 2;
+        }
+        optional ReadWithArgs lrange = 7;
     }
     message Response {
         optional Status status = 1;

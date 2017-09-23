@@ -46,6 +46,7 @@ enum class Command {
     LPOP,
     LREM,
     LTRIM,
+    LRANGE,
     EXPIRE
 };
 
@@ -165,6 +166,8 @@ class OptionParser {
             command = Command::LREM;
         } else if (cmdStr == "ltrim") {
             command = Command::LTRIM;
+        } else if (cmdStr == "lrange") {
+            command = Command::LRANGE;
         } else {
             std::cout << "Unknown command: " << cmdStr << std::endl;
             usage();
@@ -440,6 +443,10 @@ main(int argc, char** argv)
             }
             case Command::LTRIM: {
                 tree.ltrim(path, readStdin());
+                break;
+            }
+            case Command::LRANGE: {
+                std::string contents = tree.lrange(path, readStdin());
                 break;
             }
         }

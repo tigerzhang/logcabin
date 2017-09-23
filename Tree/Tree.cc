@@ -1962,6 +1962,73 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
 }
 
 Result
+Tree::lrange(const std::string& symbolicPath, const std::string& args, std::string& output)
+{
+    ++numLRANGEAttempted;
+    Result result;
+    output = "";
+
+    VERBOSE("LRANGE command: path=%s, args=%s\n", symbolicPath.c_str(), args.c_str());
+
+    if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
+    {
+
+        result.status = Status::LOOKUP_ERROR;
+        result.error = "Key expired";
+        return result;
+    }
+#ifdef ROCKSDB_FSM
+    result.status = Status::LOOKUP_ERROR;
+    result.error = symbolicPath + " does not exist";
+
+    if (symbolicPath == "") {
+        result.status = Status::INVALID_ARGUMENT;
+        return result;
+    }
+
+    if (symbolicPath == "/") {
+        // write to a directory, return TYPE_ERROR
+        result.status = Status::TYPE_ERROR;
+        return result;
+    }
+
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &output);
+    if (s.ok()) {
+        result.status = Status::OK;
+    }
+
+    std::string prefix = symbolicPath + ":s:";
+    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+        output += iter->key().ToString().substr(prefix.length()) + ",";
+        result.status = Status::OK;
+    }
+    delete iter;
+
+    prefix = symbolicPath + ":l:";
+    iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+        output += iter->key().ToString() + ":" + iter->value().ToString() + ",";
+        result.status = Status::OK;
+    }
+    delete iter;
+#endif // ROCKSDB_FSM_REAL
+
+    ++numLRANGESuccess;
+    return result;
+}
+
+Result
 Tree::head(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;

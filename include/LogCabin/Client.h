@@ -555,6 +555,9 @@ class Tree {
     Result
     ltrim(const std::string& path, const std::string& contents);
 
+    std::string
+    lrange(const std::string& path, const std::string& contents);
+
     /**
      * Get the value of a file.
      * \param path

@@ -460,6 +460,9 @@ class Tree {
     read(const std::string& path, std::string& contents);
 
     Result
+    lrange(const std::string& path, const std::string& args, std::string& output);
+
+    Result
     head(const std::string& path, std::string& contents) const;
 
     /**
@@ -588,6 +591,8 @@ private:
     uint64_t numWriteSuccess;
     mutable uint64_t numReadAttempted;
     mutable uint64_t numReadSuccess;
+    mutable uint64_t numLRANGEAttempted;
+    mutable uint64_t numLRANGESuccess;
     uint64_t numRemoveFileAttempted;
     uint64_t numRemoveFileParentNotFound;
     uint64_t numRemoveFileTargetNotFound;

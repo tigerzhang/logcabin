@@ -585,6 +585,22 @@ Tree::readEx(const std::string& path) const
 }
 
 std::string
+Tree::lrange(const std::string& path, const std::string& contents)
+{
+    std::string output;
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    treeDetails->clientImpl->lrange(
+           path,
+           treeDetails->workingDirectory,
+           treeDetails->condition,
+           contents,
+           ClientImpl::absTimeout(treeDetails->timeoutNanos),
+           output
+    );
+    return output;
+}
+
+std::string
 Tree::headEx(const std::string &path) const {
     std::string contents;
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();

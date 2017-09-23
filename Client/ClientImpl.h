@@ -153,17 +153,17 @@ class ClientImpl {
 
     /// See Tree::expire.
     Result expire(const std::string& path,
-                const std::string& workingDirectory,
-                const std::string& contents,
-                const Condition& condition,
-                TimePoint timeout);
+                  const std::string& workingDirectory,
+                  const std::string& contents,
+                  const Condition& condition,
+                  TimePoint timeout);
 
     /// See Tree::pub.
     Result pub(const std::string& path,
-                const std::string& workingDirectory,
-                const std::string& contents,
-                const Condition& condition,
-                TimePoint timeout);
+               const std::string& workingDirectory,
+               const std::string& contents,
+               const Condition& condition,
+               TimePoint timeout);
 
     /// See Tree::read.
     Result read(const std::string& path,
@@ -192,21 +192,29 @@ class ClientImpl {
                TimePoint timeout);
 
     Result lpop(const std::string& path,
-                 const std::string& workingDirectory,
-                 const Condition& condition,
-                 TimePoint timeout);
+                const std::string& workingDirectory,
+                const Condition& condition,
+                TimePoint timeout);
 
     Result lrem(const std::string& path,
+                const std::string& workingDirectory,
+                const std::string& contents,
+                const Condition& condition,
+                TimePoint timeout);
+
+    Result ltrim(const std::string& path,
                  const std::string& workingDirectory,
                  const std::string& contents,
                  const Condition& condition,
                  TimePoint timeout);
 
-    Result ltrim(const std::string& path,
-            const std::string& workingDirectory,
-            const std::string& contents,
-            const Condition& condition,
-            TimePoint timeout);
+
+    Result lrange(const std::string& path,
+                  const std::string& workingDirectory,
+                  const Condition& condition,
+                  const std::string& args,
+                  TimePoint timeout,
+                  std::string& output);
 
     /**
      * Low-level interface to ServerControl service used by
