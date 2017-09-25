@@ -1698,38 +1698,63 @@ Tree::ltrim(const std::string& symbolicPath, const std::string &contents) {
         result.status = Status::INVALID_ARGUMENT;
         return result;
     } else {
-        //TODO: start and stop can be negative (following redis implementation)
         int start = atoi(args[0].c_str());
         int stop = atoi(args[1].c_str());
-        if (start < 0 || stop < 0) {
-            ERROR("Err wrong type of arguments for ltrim command");
-            result.status = Status::INVALID_ARGUMENT;
-            return result;
-        }
 
-        VERBOSE("LTRIM: start: %d, stop: %d\n", start, stop);
+        VERBOSE("LTRIM input args: start: %d, stop: %d\n", start, stop);
 
-        if (start == 0) {
-            result.status = Status::INVALID_ARGUMENT;
-            return result;
-        }
-        std::string prefix = symbolicPath + ":l:";
-        auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-        int index = 0;
-        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
-            if (start > stop) {
-                rdb->Delete(writeOptions, pcf, iter->key()); // delete all the keys
-            } else {                                         // keep [start, stop] of list
-                if (index < start) {
-                    rdb->Delete(writeOptions, pcf, iter->key());
-                } else if (index > stop) {
-                    rdb->Delete(writeOptions, pcf, iter->key());
-                } else {
-                    continue;
+        std::string listLengthStr;
+        int listLength;
+        rocksdb::Status s;
+        std::string keyStoreListLength(symbolicPath + ":c");
+        s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
+        if (s.ok()) {
+            listLength = atoi(listLengthStr.c_str());
+            VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
+
+            if (start < 0) {
+                start = start + listLength < 0 ? -1 : start + listLength;
+            }
+
+            if (stop < 0) {
+                stop = stop + listLength < 0 ? -1 : stop + listLength;
+            } else if (stop > listLength) {
+                stop = listLength - 1;
+            }
+
+            if (start < stop) {
+                start = start == -1 ? 0 : start;
+            }
+
+            std::string prefix = symbolicPath + ":l:";
+            auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+            int index = 0;
+            for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
+                if (start > stop) {
+                    rdb->Delete(writeOptions, pcf, iter->key()); // delete all the keys
+                    listLength--;
+                } else {                                         // keep [start, stop] of list
+                    if (index < start) {
+                        rdb->Delete(writeOptions, pcf, iter->key());
+                        listLength--;
+                    } else if (index > stop) {
+                        rdb->Delete(writeOptions, pcf, iter->key());
+                        listLength--;
+                    } else {
+                        continue;
+                    }
                 }
             }
+            if (listLength <= 0) {
+                rdb->Delete(writeOptions, pcf, keyStoreListLength);
+            } else {
+                rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(listLength));
+            }
+            delete iter;
+        } else {
+            result.status = Status::LOOKUP_ERROR;
+            return result;
         }
-        delete iter;
     }
 #endif
     result.status = Status::OK;
@@ -2063,7 +2088,7 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
                 stop = listLength - 1;
             }
 
-            if (stop < start) {
+            if (start > stop) {
                 result.status = Status::OK;
                 output = "";
             } else {
