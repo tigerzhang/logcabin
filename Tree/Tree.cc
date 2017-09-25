@@ -2020,13 +2020,8 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
         //TODO: start and stop can be negative (following redis implementation)
         int start = atoi(splittedArgs[0].c_str());
         int stop = atoi(splittedArgs[1].c_str());
-        if (start < 0 || stop < 0) {
-            ERROR("Err wrong type of arguments for lrange command");
-            result.status = Status::INVALID_ARGUMENT;
-            return result;
-        }
 
-        VERBOSE("LRANGE: start: %d, stop: %d\n", start, stop);
+        VERBOSE("LRANGE input args: start: %d, stop: %d\n", start, stop);
 
         if (symbolicPath == "") {
             result.status = Status::INVALID_ARGUMENT;
@@ -2049,26 +2044,55 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
             PANIC("Get cf failed");
         }
 
-        rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &output);
+        std::string listLengthStr;
+        int listLength;
+        rocksdb::Status s;
+        std::string keyStoreListLength(symbolicPath + ":c");
+        s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
         if (s.ok()) {
-            result.status = Status::OK;
-        }
+            listLength = atoi(listLengthStr.c_str());
+            VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
 
-        std::string prefix = symbolicPath + ":s:";
-        auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-            output += iter->key().ToString().substr(prefix.length()) + ",";
-            result.status = Status::OK;
-        }
-        delete iter;
+            if (start < 0) {
+                start = start + listLength < 0 ? -1 : start + listLength;
+            }
 
-        prefix = symbolicPath + ":l:";
-        iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-        for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-            output += iter->key().ToString() + ":" + iter->value().ToString() + ",";
-            result.status = Status::OK;
+            if (stop < 0) {
+                stop = stop + listLength < 0 ? -1 : stop + listLength;
+            } else if (stop > listLength) {
+                stop = listLength - 1;
+            }
+
+            if (stop < start) {
+                result.status = Status::OK;
+                output = "";
+            } else {
+                start = start == -1 ? 0 : start;
+                VERBOSE("get list range: [%d,%d]\n", start, stop);
+
+                s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &output);
+                if (s.ok()) {
+                    result.status = Status::OK;
+                }
+
+                std::string prefix = symbolicPath + ":l:";
+                int index = 0;
+                auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
+                for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
+                    if (index >= start && index <= stop) {
+                        output += iter->key().ToString() + ":" + iter->value().ToString() + ",";
+                        result.status = Status::OK;
+                        if (index == stop) {
+                            break;
+                        }
+                    }
+                }
+                delete iter;
+            }
+        } else {
+            result.status = Status::LOOKUP_ERROR;
+            return result;
         }
-        delete iter;
     }
 #endif // ROCKSDB_FSM_REAL
 
