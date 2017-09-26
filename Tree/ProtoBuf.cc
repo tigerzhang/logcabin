@@ -83,11 +83,11 @@ readWriteTreeRPC(Tree& tree,
                             request.rpush().contents(),
                             request.request_time());
     } else if (request.has_lpop()) {
-        result = tree.lpop(request.lpop().path(), contents);
+        result = tree.lpop(request.lpop().path(), contents, request.request_time());
         response.set_error(contents);
     } else if (request.has_lrem()) {
         result = tree.lrem(request.lrem().path(),
-                           request.lrem().contents());
+                           request.lrem().contents(), request.request_time());
     } else if (request.has_make_directory()) {
         result = tree.makeDirectory(request.make_directory().path());
     } else if (request.has_remove_directory()) {
@@ -109,7 +109,7 @@ readWriteTreeRPC(Tree& tree,
                           request.pub().contents());
     } else if (request.has_ltrim()) {
         result = tree.ltrim(request.ltrim().path(),
-                          request.ltrim().contents());
+                          request.ltrim().contents(), request.request_time());
     } else if (request.has_expire()) {
         uint32_t operation = 0;
         if(request.expire().has_operation())
