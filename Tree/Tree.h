@@ -417,7 +417,7 @@ class Tree {
      *       - TYPE_ERROR if path exists but is a directory.
      */
     Result
-    write(const std::string& path, const std::string& contents,int64_t request_time);
+    write(const std::string& path, const std::string& contents,int64_t requestTime);
 
     Result
     sadd(const std::string& path, const std::string& contents);
@@ -432,13 +432,13 @@ class Tree {
     rpush(const std::string& path, const std::string& contents,int64_t request_time);
 
     Result
-    lpop(const std::string& path, std::string& contents);
+    lpop(const std::string& path, std::string& contents, int64_t requestTime);
 
     Result
-    lrem(const std::string& path, const std::string& contents);
+    lrem(const std::string& path, const std::string& contents, int64_t requestTime);
 
     Result
-    ltrim(const std::string& path, const std::string& contents);
+    ltrim(const std::string& path, const std::string& contents, int64_t expireTime);
 
     Result
     expire(const std::string& path,const std::string& expire, const uint32_t op, int64_t request_time);

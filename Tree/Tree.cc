@@ -1613,9 +1613,10 @@ Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_
 }
 
 Result
-Tree::lpop(const std::string& symbolicPath, std::string& contents) {
+Tree::lpop(const std::string& symbolicPath, std::string& contents, int64_t requestTime) {
     ++numLPopAttempted;
     Result result;
+    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1639,9 +1640,10 @@ Tree::lpop(const std::string& symbolicPath, std::string& contents) {
 }
 
 Result
-Tree::lrem(const std::string& symbolicPath, const std::string &contents) {
+Tree::lrem(const std::string& symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numLRemAttempted;
     Result result;
+    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1682,9 +1684,10 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents) {
 }
 
 Result
-Tree::ltrim(const std::string& symbolicPath, const std::string &contents) {
+Tree::ltrim(const std::string& symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numLTrimAttempted;
     Result result;
+    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
 #ifdef ROCKSDB_FSM
     std::vector<std::string> args(std::move(split_args(contents)));
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
