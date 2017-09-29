@@ -306,6 +306,7 @@ main(int argc, char** argv)
                   << " ms to write "
                   << totalWritesDone
                   << " objects"
+                  << " OPS: " << static_cast<double>(totalWritesDone) / (static_cast<double>(endNanos - startNanos) / 1e9)
                   << std::endl;
         return 0;
 
