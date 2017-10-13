@@ -528,6 +528,12 @@ private:
     bool checkIsKeyExpiredForReadRequest(const std::string& path);
 
     void appendCleanExpireRequestLog(const std::string& path, const std::string& content);
+
+    /*
+
+       return -1 if key is not in the expire list, reutrn the timestamp (unit: second) if the key exists in expire list
+    */
+    int64_t getKeyExpireTime(const std::string& path);
     /**
      * clean the expired keys, this should be call expired key is detected.
      * 
@@ -626,6 +632,7 @@ private:
     ColumnFamilyHandleTable handlers;
     ColumnFamilyHandlePtr getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const;
     std::map<std::string, uint64_t> listIndexes;
+    std::map<std::string, int64_t> expireCache;
 #endif // ROCKSDB_FSM_REAL
 
 #ifdef ARDB_FSM

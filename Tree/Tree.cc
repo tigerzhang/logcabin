@@ -1029,6 +1029,12 @@ Result Tree::removeExpireSetting(const std::string& path)
         PANIC("Get cf failed");
     }
     VERBOSE("now delete exprie");
+    auto cacheIt = this->expireCache.find(path);
+    if(this->expireCache.end() != cacheIt)
+    {
+        this->expireCache.erase(cacheIt);
+    }
+
     auto deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
     if(!deleteResult.ok())
     {
@@ -1089,11 +1095,7 @@ Result Tree::cleanExpiredKeys(const std::string& path)
         rdb->Delete(writeOptions, pcf, path);
     }
     VERBOSE("now delete exprie");
-    auto deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
-    if(!deleteResult.ok())
-    {
-        PANIC("delete expire meta failed");
-    }
+    removeExpireSetting(path);
     return s;
 }
 
@@ -1471,16 +1473,18 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
     std::string expireTimeString = "";
     if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
     {
+        //this is a expire clean up request, no need to check expire, it will be removed after all
         expireTimeString = contents;
     } 
     else
     {
+        //need to check expire before setting a new expire
+        checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
         expireAt = std::atoi(contents.c_str()) + requestTime;
         expireTimeString = std::to_string((uint)expireAt);
 
     }
 
-    //TODO:check content, content should be all number
 #ifdef ROCKSDB_FSM
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -1512,6 +1516,7 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
             //nothing found, do nothing, can be duplicate request 
         }else{
             rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
+            expireCache[symbolicPath] = expireAt;
             //should maintain a list to make sure it can hold in memory
             //but currently it's ok to stop here, let's make it work first
         }
@@ -1538,8 +1543,7 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
                 //nothing found, do nothing, can be duplicate request 
             }else{
                 rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
-                //should maintain a list to make sure it can hold in memory
-                //but currently it's ok to stop here, let's make it work first
+                expireCache[symbolicPath] = expireAt;
             }
         }else{
             result.status = Status::LOOKUP_ERROR;
@@ -1790,7 +1794,6 @@ bool Tree::checkIsKeyExpiredForReadRequest(const std::string& symbolicPath)
 {
     if(isKeyExpired(symbolicPath, 0) == Tree::KeyExpireStatusExpired)
     {
-        //TODO: append raft log here, so you can delete it
         return true;
     }
     return false;
@@ -1820,46 +1823,47 @@ void Tree::appendCleanExpireRequestLog(const std::string &path, const std::strin
     }
 }
 
+int64_t Tree::getKeyExpireTime(const std::string& path)
+{
+    auto it = expireCache.find(path);
+    if(expireCache.end() == it)
+    {
+        return -1;
+    }else{
+        return it->second;
+    }
+}
+
+#define IS_REQUEST_FROM_READ (0 == requestTime)
 Tree::KeyExpireStatus Tree::isKeyExpired(const std::string& path, int64_t requestTime)
 {
+    auto expireAt = getKeyExpireTime(path);
+    if(expireAt == -1)
+    {
+        //no expire setting is found
+        return Tree::KeyExpireStatusNotSet;
+    }
     long now = requestTime;
-    if(0 == now)
+    if(IS_REQUEST_FROM_READ)
     {
         //use current time if the request time is zero
         auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
         now = timeSpec.tv_sec;
     }
-    std::string metaKey = path + ":e:meta";
-    
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-    std::string contents;
-    auto getRdbResult = rdb->Get(rocksdb::ReadOptions(), pcf, metaKey, &contents);
-    if(getRdbResult.ok())
+    if(now > expireAt)
     {
-        std::string expireAtString  = contents;
-        long expireAt = std::atoi(expireAtString.c_str());
-
-        if(now > expireAt)
+        //don'y delete anything here, just return if the reqeust time is not zero
+        if(IS_REQUEST_FROM_READ)
         {
-            //don'y delete anything here, just return 
-            if( 0 == requestTime )
-            {
-                appendCleanExpireRequestLog(path, contents);
-            }
-            return Tree::KeyExpireStatusExpired;
+            appendCleanExpireRequestLog(path, std::to_string(expireAt));
         }
-        else
-        {
-            //not expired, return this
-            return Tree::KeyExpireStatusNotExpired;
-        }
+        return Tree::KeyExpireStatusExpired;
     }
-    //not ok, so no expire is set for this key
-    return Tree::KeyExpireStatusNotSet;
+    else
+    {
+        //not expired, return this
+        return Tree::KeyExpireStatusNotExpired;
+    }
 }
 
 Result

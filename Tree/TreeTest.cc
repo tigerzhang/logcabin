@@ -770,11 +770,11 @@ TEST_F(TreeTreeTest, ltrim)
     EXPECT_OK(tree.rpush("/r", "two", now));
     EXPECT_OK(tree.rpush("/r", "three", now));
 
-    EXPECT_OK(tree.ltrim("/r", "1 -1"));
+    EXPECT_OK(tree.ltrim("/r", "1 -1", now));
     EXPECT_OK(tree.lrange("/r", "0 -1", ouput));
     EXPECT_EQ("/r:l:0000001:two,/r:l:0000002:three,", ouput);
 
-    EXPECT_OK(tree.ltrim("/r", "0 0"));
+    EXPECT_OK(tree.ltrim("/r", "0 0", now));
     EXPECT_OK(tree.lrange("/r", "0 -1", ouput));
     EXPECT_EQ("/r:l:0000001:two,", ouput);
 }
