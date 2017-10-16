@@ -96,6 +96,7 @@ StateMachine::StateMachine(std::shared_ptr<RaftConsensus> consensus,
     tree.setRaft(consensus.get());
 #endif
     tree.Init(consensus->storageLayout.serverDir.path);
+    this->globals.eventLoop.setTreeForExpireTimer(&tree);
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
                                                 MAX_SUPPORTED_VERSION);
@@ -310,6 +311,7 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
     }
     uint16_t runningVersion = getVersion(entry.index - 1);
     if (command.has_tree()) {
+        VERBOSE("tree exists");
         PC::ExactlyOnceRPCInfo rpcInfo = command.tree().exactly_once();
         auto it = sessions.find(rpcInfo.client_id());
         if(it != sessions.end()){
@@ -318,6 +320,7 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
             expireResponses(session, rpcInfo.first_outstanding_rpc());
             if (rpcInfo.rpc_number() < session.firstOutstandingRPC) {
                 // response already discarded, do not re-apply
+                VERBOSE("response discarded, so do nothing, %d,%d,%d", rpcInfo.rpc_number(), session.firstOutstandingRPC, rpcInfo.client_id());
             }
             else
             {
@@ -330,20 +333,28 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
                         command.tree(),
                         *inserted.first->second.mutable_tree());
                     session.lastModified = entry.clusterTime;
+                    if(it->first == 0)
+                    {
+                        //update tree's zero session so it won't make duplicate request
+                        tree.setUpZeroSessionIndex(it->second.firstOutstandingRPC+1);
+                    }
                 }
                 else {
                     // response exists, do not re-apply
+                    VERBOSE("response exists");
                 }
             }
         }
         else if(rpcInfo.client_id() == 0)
         {
             //this is an internal request
-            VERBOSE("get zero clientid, just apply");
+            VERBOSE("get zero clientid, just insert a new session and apply");
             Session& session = sessions.insert({0, {}}).first->second;
             session.lastModified = entry.clusterTime;
             //and then do it again
             return apply(entry);
+        }else{
+            VERBOSE("unexists client id");
         }
     } else if (command.has_open_session()) {
         uint64_t clientId = entry.index;
@@ -630,6 +641,7 @@ StateMachine::shouldTakeSnapshot(uint64_t lastIncludedIndex) const
         return false;
     if (lastIncludedIndex < stats.last_log_index() * 3 / 4)
         return false;
+
     return true;
 }
 

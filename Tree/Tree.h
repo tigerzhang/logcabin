@@ -315,6 +315,8 @@ class Tree {
 
     void Init(std::string& path);
 
+    void setUpZeroSessionIndex(uint64_t index);
+
     void findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const;
     /**
      * Write the tree to the given stream.
@@ -485,10 +487,10 @@ class Tree {
     updateServerStats(Protocol::ServerStats_Tree& tstats) const;
 
 #ifdef ROCKSDB_FSM
-    void setRaft(LogCabin::Server::RaftConsensus* raft) {
-        this->raft= raft;
-    }
+    void setRaft(LogCabin::Server::RaftConsensus* raft);
 #endif // ROCKSDB_FSM_REAL
+
+    void cleanUpExpireKeyEvent();
 
 private:
     /**
@@ -523,10 +525,13 @@ private:
      */
     KeyExpireStatus isKeyExpired(const std::string& path, int64_t request_time);
 
+    const std::string getMetaKeyOfExpireSetting(const std::string& path);
     bool checkIsKeyExpiredForWriteRequest(const std::string& path, int64_t request_time);
 
     bool checkIsKeyExpiredForReadRequest(const std::string& path);
 
+
+    uint64_t zeroSessionIndex;
     void appendCleanExpireRequestLog(const std::string& path, const std::string& content);
 
     /*

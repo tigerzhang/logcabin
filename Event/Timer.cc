@@ -82,6 +82,7 @@ Timer::schedule(uint64_t nanoseconds)
               nanoseconds,
               strerror(errno));
     }
+    VERBOSE("has scheduled a timer in :%lu", nanoseconds);
 }
 
 void
@@ -137,6 +138,7 @@ Timer::isScheduled() const
 void
 Timer::handleFileEvent(uint32_t events)
 {
+    VERBOSE("handle file event in timer");
     handleTimerEvent();
 }
 

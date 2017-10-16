@@ -20,6 +20,7 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#include "Tree/Tree.h"
 #include "Core/Debug.h"
 #include "Core/ThreadId.h"
 #include "Event/File.h"
@@ -92,11 +93,29 @@ Loop::NullTimer::handleTimerEvent()
     // do nothing
 }
 
+void
+Loop::ExpireTimer::handleTimerEvent()
+{
+    VERBOSE("expire timer is invoked");
+    this->schedule(expireCheckingTime);
+    if(tree != NULL)
+    {
+        tree->cleanUpExpireKeyEvent();
+    }
+    
+}
+
+Loop::ExpireTimer::ExpireTimer()
+    : tree(NULL)
+{
+}
+
 ////////// Loop //////////
 
 Loop::Loop()
     : epollfd(createEpollFd())
     , breakTimer()
+    , expireTimer()
     , shouldExit(false)
     , mutex()
     , runningThread(Core::ThreadId::NONE)
@@ -107,12 +126,15 @@ Loop::Loop()
     , unlocked()
     , extraMutexToSatisfyRaceDetector()
     , breakTimerMonitor(*this, breakTimer)
+    , expireTimerMonitor(*this, expireTimer)
 {
+    expireTimer.schedule(expireTimer.expireCheckingTime);
 }
 
 Loop::~Loop()
 {
     breakTimerMonitor.disableForever();
+    expireTimerMonitor.disableForever();
     if (epollfd >= 0) {
         int r = close(epollfd);
         if (r != 0)

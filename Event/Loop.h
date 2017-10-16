@@ -25,6 +25,9 @@
 #include "Event/Timer.h"
 
 namespace LogCabin {
+    namespace Tree{
+        class Tree;
+    };
 namespace Event {
 
 // forward declarations
@@ -92,6 +95,10 @@ class Loop {
      */
     void exit();
 
+    void setTreeForExpireTimer(Tree::Tree *tree) {
+        this->expireTimer.setTree(tree);
+    }
+
   private:
 
     /**
@@ -103,6 +110,17 @@ class Loop {
         void handleTimerEvent();
     };
 
+    class ExpireTimer: public Event::Timer {
+        public:
+            ExpireTimer();
+            void handleTimerEvent();
+
+            void setTree(Tree::Tree* tree){this->tree = tree;}
+            const int64_t expireCheckingTime = 1000l * 1000l * 1000l * 50l;
+        private:
+            Tree::Tree* tree;
+    };
+
     /**
      * The file descriptor used in epoll calls to monitor other files.
      */
@@ -112,6 +130,8 @@ class Loop {
      * Used by Event::Loop::Lock to break runForever() out of epoll_wait.
      */
     NullTimer breakTimer;
+
+    ExpireTimer expireTimer;
 
     /**
      * This is a flag to runForever() to exit, set by exit().
@@ -190,6 +210,7 @@ class Loop {
      * Watches breakTimer for events.
      */
     Event::Timer::Monitor breakTimerMonitor;
+    Event::Timer::Monitor expireTimerMonitor;
 
     friend class Event::File;
 

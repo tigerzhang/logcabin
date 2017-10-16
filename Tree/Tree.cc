@@ -415,6 +415,9 @@ Tree::Tree() :
     , snapshot(NULL)
     , disableWAL(true)
     , writeOptions(std::move(rocksdb::WriteOptions()))
+    , listIndexes()
+    , expireCache()
+
 //    , cf(NULL)
 #endif // ROCKSDB_FSM_REAL
 {
@@ -438,6 +441,12 @@ Tree::Tree() :
 
 Tree::~Tree() {
 }
+
+#ifdef ROCKSDB_FSM
+void Tree::setRaft(LogCabin::Server::RaftConsensus* raft) {
+    this->raft = raft;
+}
+#endif // ROCKSDB_FSM_REAL
 
 void Tree::Init(std::string& path) {
 
@@ -1021,14 +1030,14 @@ Tree::removeDirectory(const std::string& symbolicPath)
 Result Tree::removeExpireSetting(const std::string& path)
 {
     Result s;
-    std::string expireKeyMeta = path + ":e:meta";
+    std::string expireKeyMeta = getMetaKeyOfExpireSetting(path);
 
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
     if (NULL == pcf) {
         PANIC("Get cf failed");
     }
-    VERBOSE("now delete exprie");
+    VERBOSE("now delete expried key from map");
     auto cacheIt = this->expireCache.find(path);
     if(this->expireCache.end() != cacheIt)
     {
@@ -1046,7 +1055,7 @@ Result Tree::removeExpireSetting(const std::string& path)
 Result Tree::cleanExpiredKeys(const std::string& path)
 {
     Result s;
-    std::string expireKeyMeta = path + ":e:meta";
+    std::string expireKeyMeta = getMetaKeyOfExpireSetting(path);
     std::string originKeyMeta = path + ":meta";
     std::string originKeyMetaInfo;
 
@@ -1474,11 +1483,13 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
     if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
     {
         //this is a expire clean up request, no need to check expire, it will be removed after all
+        VERBOSE("this is a clean up request for :%s", symbolicPath.c_str());
         expireTimeString = contents;
     } 
     else
     {
         //need to check expire before setting a new expire
+        VERBOSE("this is a set up request for :%s", symbolicPath.c_str());
         checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
         expireAt = std::atoi(contents.c_str()) + requestTime;
         expireTimeString = std::to_string((uint)expireAt);
@@ -1493,7 +1504,7 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
     }
 
     rocksdb::Status s;
-    std::string keyMeta = symbolicPath + ":e:meta";
+    std::string keyMeta = getMetaKeyOfExpireSetting(symbolicPath);
     std::string originKeyMeta = symbolicPath + ":meta";
     std::string originKeyMetaInfo;
     rocksdb::Status originKeyMetaGetResult = rdb->Get(readOptions, pcf, originKeyMeta, &originKeyMetaInfo);
@@ -1801,17 +1812,16 @@ bool Tree::checkIsKeyExpiredForReadRequest(const std::string& symbolicPath)
 
 void Tree::appendCleanExpireRequestLog(const std::string &path, const std::string& content)
 {
-    static unsigned long rpcNumberForExpireKeyEntry = 0;
-    static unsigned long firstOutstandingRPCForExpireKeyEntry = 0;
-    VERBOSE("now append clean up entry %s, %d, %d", path.c_str(), rpcNumberForExpireKeyEntry, firstOutstandingRPCForExpireKeyEntry);
     //this function should not be retry!
+    uint64_t index = this->zeroSessionIndex;
     Protocol::Client::StateMachineCommand::Request command;
     command.mutable_tree()->mutable_expire()->set_path(path);
     command.mutable_tree()->mutable_expire()->set_operation(LogCabin::Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS);
     command.mutable_tree()->mutable_expire()->set_contents(content);
     command.mutable_tree()->mutable_exactly_once()->set_client_id(0);
-    command.mutable_tree()->mutable_exactly_once()->set_rpc_number(++rpcNumberForExpireKeyEntry);
-    command.mutable_tree()->mutable_exactly_once()->set_first_outstanding_rpc(++firstOutstandingRPCForExpireKeyEntry);
+    command.mutable_tree()->mutable_exactly_once()->set_rpc_number(index);
+    command.mutable_tree()->mutable_exactly_once()->set_first_outstanding_rpc(index);
+    this->zeroSessionIndex ++;
     Core::Buffer cmdBuffer;
     Core::ProtoBuf::serialize(command, cmdBuffer);
     //this make the Tool compile fail, but it's ok in current stage
@@ -1822,15 +1832,32 @@ void Tree::appendCleanExpireRequestLog(const std::string &path, const std::strin
         raft->replicate(cmdBuffer);
     }
 }
+const std::string Tree::getMetaKeyOfExpireSetting(const std::string& path){
+    return ":meta:e:" + path;
+}
 
 int64_t Tree::getKeyExpireTime(const std::string& path)
 {
     auto it = expireCache.find(path);
-    if(expireCache.end() == it)
+    if(expireCache.end() != it)
     {
-        return -1;
-    }else{
         return it->second;
+    }
+    //nothing found, goto rdb
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string key = getMetaKeyOfExpireSetting(path);
+    std::string contents = "";
+    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, key, &contents);
+    if(s.ok())
+    {
+        return std::atoi(contents.c_str());
+    }else{
+        return -1;
     }
 }
 
@@ -2283,6 +2310,46 @@ Tree::updateServerStats(Protocol::ServerStats::Tree& tstats) const
         numRemoveFileDone);
     tstats.set_num_remove_file_success(
         numRemoveFileSuccess);
+}
+
+void Tree::cleanUpExpireKeyEvent(){
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
+    static std::string lastCheckKey = ":meta:e:";
+    
+    
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string contents = "";
+    //check 1000 keys in one expire test
+    int counter = 1000;
+    auto it = rdb->NewIterator(readOptions, pcf);
+    for(it->Seek(lastCheckKey);counter > 0 && it->Valid() && it->key().starts_with(":meta:e"); counter-- ,it->Next()){
+        std::string content = it->value().ToString();
+        long expireSecond = std::atoi(content.c_str());
+        if(expireSecond < now)
+        {
+            std::string key = it->key().ToString();
+            //8 = strlen of ":meta:e:"
+            std::string path = key.substr(8);
+            VERBOSE("the path :%s, should be expired in :%s", path.c_str(), content.c_str());
+            appendCleanExpireRequestLog(path, content);
+        }
+        lastCheckKey = it->key().ToString();
+    }
+
+}
+
+void Tree::setUpZeroSessionIndex(uint64_t index)
+{
+    VERBOSE("set up zero session index:%ld", index);
+    if(index > this->zeroSessionIndex){
+        this->zeroSessionIndex = index;
+    }
 }
 
 void Tree::startSnapshot(uint64_t lastIncludedIndex) {
