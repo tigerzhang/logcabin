@@ -2327,6 +2327,7 @@ void Tree::cleanUpExpireKeyEvent(){
     std::string contents = "";
     //check 1000 keys in one expire test
     int counter = 1000;
+
     auto it = rdb->NewIterator(readOptions, pcf);
     for(it->Seek(lastCheckKey);counter > 0 && it->Valid() && it->key().starts_with(":meta:e"); counter-- ,it->Next()){
         std::string content = it->value().ToString();

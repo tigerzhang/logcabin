@@ -116,7 +116,7 @@ class Loop {
             void handleTimerEvent();
 
             void setTree(Tree::Tree* tree){this->tree = tree;}
-            const int64_t expireCheckingTime = 1000l * 1000l * 1000l * 50l;
+            const int64_t expireCheckingTime = 1000l * 1000l * 1000l * 60l;
         private:
             Tree::Tree* tree;
     };
@@ -131,6 +131,10 @@ class Loop {
      */
     NullTimer breakTimer;
 
+    /**
+      * this timer is used to invoke tree.cleanUpExpireKeyEvent,
+      the event should be invoke in expireCheckingTime
+    */
     ExpireTimer expireTimer;
 
     /**
