@@ -1812,6 +1812,11 @@ bool Tree::checkIsKeyExpiredForReadRequest(const std::string& symbolicPath)
 
 void Tree::appendCleanExpireRequestLog(const std::string &path, const std::string& content)
 {
+    if(NULL == raft ||
+            raft->state != Server::RaftConsensus::State::LEADER ){
+        // don't need to do anything if this node is not leader
+        return;
+    }
     //this function should not be retry!
     uint64_t index = this->zeroSessionIndex;
     Protocol::Client::StateMachineCommand::Request command;
@@ -2329,7 +2334,13 @@ void Tree::cleanUpExpireKeyEvent(){
     int counter = 1000;
 
     auto it = rdb->NewIterator(readOptions, pcf);
-    for(it->Seek(lastCheckKey);counter > 0 && it->Valid() && it->key().starts_with(":meta:e"); counter-- ,it->Next()){
+    for(it->Seek(lastCheckKey);counter > 0 && it->Valid() ; counter-- ,it->Next()){
+        if(!it->key().starts_with(":meta:e"))
+        {
+            //loop back to start if reach end
+            lastCheckKey = ":meta:e:";
+            break;
+        }
         std::string content = it->value().ToString();
         long expireSecond = std::atoi(content.c_str());
         if(expireSecond < now)
