@@ -111,6 +111,13 @@ readWriteTreeRPC(Tree& tree,
         result = tree.ltrim(request.ltrim().path(),
                           request.ltrim().contents(), request.request_time());
     } else if (request.has_expire()) {
+        //don't panic, it's a pure expire request
+    } else {
+        PANIC("Unexpected request: %s",
+              Core::ProtoBuf::dumpString(request).c_str());
+    }
+    //handle expire after other writtings
+    if (request.has_expire()) {
         uint32_t operation = 0;
         if(request.expire().has_operation())
         {
@@ -120,13 +127,10 @@ readWriteTreeRPC(Tree& tree,
             operation = Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN;
         }
         result = tree.expire(request.expire().path(),
-                          request.expire().contents(),
-                          operation,
-                          request.request_time()
-                          );
-    } else {
-        PANIC("Unexpected request: %s",
-              Core::ProtoBuf::dumpString(request).c_str());
+                request.expire().contents(),
+                operation,
+                request.request_time()
+                );
     }
     response.set_status(static_cast<PC::Status>(result.status));
     if (result.status != Status::OK)
