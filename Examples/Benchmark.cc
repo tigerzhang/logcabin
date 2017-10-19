@@ -31,6 +31,8 @@
 #include <iostream>
 #include <thread>
 #include <unistd.h>
+#include <cmath>
+#include <iomanip>
 
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
@@ -193,6 +195,17 @@ class OptionParser {
 };
 
 /**
+ * Return the time since the Unix epoch in nanoseconds.
+ */
+uint64_t timeNanos()
+{
+    struct timespec now;
+    int r = clock_gettime(CLOCK_REALTIME, &now);
+    assert(r == 0);
+    return uint64_t(now.tv_sec) * 1000 * 1000 * 1000 + uint64_t(now.tv_nsec);
+}
+
+/**
  * The main function for a single client thread.
  * \param id
  *      Unique ID for this thread, counting from 0.
@@ -216,29 +229,22 @@ writeThreadMain(uint64_t id,
                 const std::string& key,
                 const std::string& value,
                 std::atomic<bool>& exit,
-                uint64_t& writesDone)
+                uint64_t& writesDone, std::vector<double>& latency)
 {
     uint64_t numWrites = options.totalWrites / options.writers;
+    uint64_t startNanos, endNanos;
     // assign any odd leftover writes in a balanced way
     if (options.totalWrites - numWrites * options.writers > id)
         numWrites += 1;
     for (uint64_t i = 0; i < numWrites; ++i) {
         if (exit)
             break;
+        startNanos = timeNanos();
         tree.writeEx(key, value);
+        endNanos = timeNanos();
+        latency.emplace_back(static_cast<double>(endNanos - startNanos) / 1e6);
         writesDone = i + 1;
     }
-}
-
-/**
- * Return the time since the Unix epoch in nanoseconds.
- */
-uint64_t timeNanos()
-{
-    struct timespec now;
-    int r = clock_gettime(CLOCK_REALTIME, &now);
-    assert(r == 0);
-    return uint64_t(now.tv_sec) * 1000 * 1000 * 1000 + uint64_t(now.tv_nsec);
 }
 
 /**
@@ -265,6 +271,29 @@ timerThreadMain(uint64_t timeout, std::atomic<bool>& exit)
 
 } // anonymous namespace
 
+void
+statLatency(const std::vector<std::vector<double>> &latency, const uint64_t &totalWrites)
+{
+    std::map<int, int> latencyStatics;
+    int ceilLantency, countInRange;
+    for (auto const &v : latency) {
+        for (auto const &l : v) {
+            ceilLantency = (int)ceil(l);
+            ++latencyStatics[ceilLantency];
+        }
+    }
+    for (auto it = latencyStatics.begin(); it != latencyStatics.end(); ++it) {
+        countInRange = 0;
+        for (auto it2 = latencyStatics.begin(); it2 != latencyStatics.upper_bound(it->first); ++it2) {
+            countInRange += it2->second;
+        }
+        // same format from redis-benckmark tool
+        std::cout << std::fixed << std::setprecision (2)
+                  << countInRange / static_cast<double>(totalWrites) * 100
+                  << "% <= " << it->first << " milliseconds" << std::endl;
+    }
+}
+
 int
 main(int argc, char** argv)
 {
@@ -285,12 +314,14 @@ main(int argc, char** argv)
         std::vector<uint64_t> writesDonePerThread(options.writers);
         uint64_t totalWritesDone = 0;
         std::vector<std::thread> threads;
+        std::vector<std::vector<double>> latency(options.writers);
         std::thread timer(timerThreadMain, options.timeout, std::ref(exit));
         for (uint64_t i = 0; i < options.writers; ++i) {
             threads.emplace_back(writeThreadMain, i, std::ref(options),
                                  tree, std::ref(key), std::ref(value),
                                  std::ref(exit),
-                                 std::ref(writesDonePerThread.at(i)));
+                                 std::ref(writesDonePerThread.at(i)),
+                                 std::ref(latency[i]));
         }
         for (uint64_t i = 0; i < options.writers; ++i) {
             threads.at(i).join();
@@ -308,6 +339,7 @@ main(int argc, char** argv)
                   << " objects"
                   << " OPS: " << static_cast<double>(totalWritesDone) / (static_cast<double>(endNanos - startNanos) / 1e9)
                   << std::endl;
+        statLatency(latency, options.totalWrites);
         return 0;
 
     } catch (const LogCabin::Client::Exception& e) {
