@@ -2318,6 +2318,12 @@ Tree::updateServerStats(Protocol::ServerStats::Tree& tstats) const
 }
 
 void Tree::cleanUpExpireKeyEvent(){
+    if(NULL == raft ||
+            raft->state != Server::RaftConsensus::State::LEADER)
+    {
+        //don't do check on follower, but the timer should keep running
+        return;
+    }
     auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
     long now = timeSpec.tv_sec;
     static std::string lastCheckKey = ":meta:e:";
