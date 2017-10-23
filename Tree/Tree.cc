@@ -1837,6 +1837,7 @@ void Tree::appendCleanExpireRequestLog(const std::string &path, const std::strin
         raft->replicate(cmdBuffer);
     }
 }
+
 const std::string Tree::getMetaKeyOfExpireSetting(const std::string& path){
     return ":meta:e:" + path;
 }
@@ -1907,7 +1908,7 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
     if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
     {
 
-        result.status = Status::LOOKUP_ERROR;
+        result.status = Status::KEY_EXPIRED;
         result.error = "Key expired";
         return result; 
     }
@@ -2066,8 +2067,7 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
 
     if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
     {
-
-        result.status = Status::LOOKUP_ERROR;
+        result.status = Status::KEY_EXPIRED;
         result.error = "Key expired";
         return result;
     }

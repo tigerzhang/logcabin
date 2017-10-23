@@ -74,7 +74,15 @@ enum class Status {
      */
     CONDITION_NOT_MET = 4,
 
+    /**
+     * This List is Empty
+     */
     LIST_EMPTY = 5,
+
+    /**
+     * The Key is Expired
+     */
+    KEY_EXPIRED = 6,
 };
 
 /**
