@@ -33,7 +33,7 @@ namespace LogCabin {
 namespace Storage {
 namespace FilesystemUtil {
 
-bool skipFsync = false;
+bool skipFsync = true;
 
 File::File()
     : fd(-1)
