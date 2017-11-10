@@ -365,12 +365,19 @@ message ReadWriteTree {
             optional ExpireOpCode operation = 3;
         }
 
+        message Lrem{
+            required string path = 1;
+            required string contents = 2;
+            //
+            required int32 count = 3;
+        }
+
         optional Write sadd = 7;
         optional Write srem = 8;
         optional Write pub = 9;
         optional Write rpush = 12;
         optional RemoveDirectory lpop = 13;
-        optional Write lrem = 14;
+        optional Lrem lrem = 14;
         optional Write ltrim = 15;
         optional Expire expire = 16;
         optional int64 request_time = 17;

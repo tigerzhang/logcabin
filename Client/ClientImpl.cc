@@ -954,6 +954,7 @@ ClientImpl::lrem(const std::string& path,
     setCondition(request, condition);
     request.mutable_lrem()->set_path(realPath);
     request.mutable_lrem()->set_contents(contents);
+    request.mutable_lrem()->set_count(0);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);

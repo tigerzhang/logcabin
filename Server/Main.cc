@@ -274,6 +274,7 @@ class PidFile {
 int
 main(int argc, char** argv)
 {
+
     using namespace LogCabin;
 
     try {
@@ -332,12 +333,20 @@ main(int argc, char** argv)
             Server::Globals globals;
             globals.config.readFile(options.configFilename.c_str());
 
+
+
             // Set debug log policy.
             // A few log messages above already got through; oh well.
             Core::Debug::setLogPolicy(
                 Core::Debug::logPolicyFromString(
                     globals.config.read<std::string>("logPolicy", "NOTICE")));
 
+
+            // set skip fsync for by config
+            bool shouldSkipFsync = globals.config.read<bool>("skipFsync", false);
+            if(shouldSkipFsync){
+                LogCabin::Storage::FilesystemUtil::skipFsync = true;
+            }
             NOTICE("Config file settings:\n"
                    "# begin config\n"
                    "%s"

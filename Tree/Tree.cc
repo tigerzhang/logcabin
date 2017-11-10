@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <rocksdb/db.h>
+#include <rocksdb/statistics.h>
 #include <rocksdb/snapshot.h>
 #include <rocksdb/options.h>
 #include <rocksdb/iterator.h>
@@ -451,10 +452,13 @@ void Tree::setRaft(LogCabin::Server::RaftConsensus* raft) {
 void Tree::Init(std::string& path) {
 
 #ifdef ROCKSDB_FSM
+    serverDir = path;
     rocksdb::Options options;
     options.create_if_missing = true;
+    options.statistics = rocksdb::CreateDBStatistics();
+    options.stats_dump_period_sec = 1;
+    options.dump_malloc_stats = true;
 
-    serverDir = path;
     fsmDir = serverDir + "/rocksdb-fsm";
 
     rocksdb::Status status;
