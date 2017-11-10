@@ -1117,6 +1117,7 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
 {
     ++numWriteAttempted;
     Result result;
+    result.status = Status::OK;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
 #ifdef MEM_FSM
     Path path(symbolicPath);
@@ -1572,6 +1573,66 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
     return result;
 }
 
+//TODO: should extract lpush and rpush
+Result
+Tree::lpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
+    ++numRPushAttempted;
+    Result result;
+    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
+#ifdef ROCKSDB_FSM
+    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
+    if (NULL == pcf) {
+        PANIC("Get cf failed");
+    }
+
+    std::string meta;
+    rocksdb::Status s;
+    uint64_t index = 99999;
+    std::string keyMeta = symbolicPath + ":meta";
+
+    auto it = listRevertIndexes.find(symbolicPath);
+    if (it != listRevertIndexes.end()) {
+        index = it->second;
+    } else {
+        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
+        if (s.ok()) {
+            assert(meta.substr(0, 1) == "l");
+            std::string indexStored = meta.substr(1);
+            index = atoll(indexStored.c_str());
+            listRevertIndexes[symbolicPath] = index;
+        }
+    }
+
+    char indexStr[8];
+    snprintf(indexStr, 8, "%07lu", index);
+    std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
+    listRevertIndexes[symbolicPath] = index - 1;
+
+    rdb->Put(writeOptions, pcf, keyElement, contents);
+
+    snprintf(indexStr, 8, "%lu", index+1);
+    rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
+
+    //TODO: need to be abstract as function
+    std::string listLengthStr;
+    int listLength;
+    std::string keyStoreListLength(symbolicPath + ":c");
+    s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
+    if (s.ok()) {
+        listLength = atoi(listLengthStr.c_str());
+        rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(++listLength));
+        VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
+    } else if (s.IsNotFound()) {
+        VERBOSE("list length initialize to 1\n");
+        rdb->Put(writeOptions, pcf, keyStoreListLength, "1");
+    }
+
+#endif
+    ++numRPushSuccess;
+    return result;
+}
+
 Result
 Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numRPushAttempted;
@@ -1586,7 +1647,8 @@ Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_
 
     std::string meta;
     rocksdb::Status s;
-    uint64_t index = 0;
+    //if nothing is found, should start from 100000
+    uint64_t index = 100000;
     std::string keyMeta = symbolicPath + ":meta";
 
     auto it = listIndexes.find(symbolicPath);

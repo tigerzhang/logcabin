@@ -888,6 +888,33 @@ ClientImpl::expire(const std::string& path,
 }
 
 Result
+ClientImpl::lpush(const std::string& path,
+             const std::string& workingDirectory,
+             const std::string& contents,
+             const Condition& condition,
+             TimePoint timeout)
+{
+    std::string realPath;
+    Result result = canonicalize(path, workingDirectory, realPath);
+    if (result.status != Status::OK)
+        return result;
+    Protocol::Client::ReadWriteTree::Request request;
+    *request.mutable_exactly_once() =
+            exactlyOnceRPCHelper.getRPCInfo(timeout);
+    setCondition(request, condition);
+    request.mutable_lpush()->set_path(realPath);
+    request.mutable_lpush()->set_contents(contents);
+    Protocol::Client::ReadWriteTree::Response response;
+    treeCall(*leaderRPC,
+             request, response, timeout);
+    exactlyOnceRPCHelper.doneWithRPC(request.exactly_once());
+    if (response.status() != Protocol::Client::Status::OK)
+        return treeError(response);
+    return Result();
+}
+
+
+Result
 ClientImpl::rpush(const std::string& path,
              const std::string& workingDirectory,
              const std::string& contents,

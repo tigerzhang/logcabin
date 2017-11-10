@@ -82,6 +82,10 @@ readWriteTreeRPC(Tree& tree,
         result = tree.rpush(request.rpush().path(),
                             request.rpush().contents(),
                             request.request_time());
+    } else if (request.has_lpush()) {
+        result = tree.lpush(request.lpush().path(),
+                            request.lpush().contents(),
+                            request.request_time());
     } else if (request.has_lpop()) {
         result = tree.lpop(request.lpop().path(), contents, request.request_time());
         response.set_error(contents);

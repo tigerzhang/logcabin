@@ -475,6 +475,12 @@ Tree::rpushEx(const std::string& path, const std::string& contents)
     throwException(rpush(path, contents), treeDetails->timeoutNanos);
 }
 
+void
+Tree::lpushEx(const std::string& path, const std::string& contents)
+{
+    throwException(lpush(path, contents), treeDetails->timeoutNanos);
+}
+
 Result
 Tree::expire(const std::string& path, const std::string& contents)
 {
@@ -486,6 +492,19 @@ Tree::expire(const std::string& path, const std::string& contents)
             treeDetails->condition,
             ClientImpl::absTimeout(treeDetails->timeoutNanos));
 }
+
+Result
+Tree::lpush(const std::string& path, const std::string& contents)
+{
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    return treeDetails->clientImpl->lpush(
+            path,
+            treeDetails->workingDirectory,
+            contents,
+            treeDetails->condition,
+            ClientImpl::absTimeout(treeDetails->timeoutNanos));
+}
+
 
 Result
 Tree::rpush(const std::string& path, const std::string& contents)

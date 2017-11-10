@@ -442,6 +442,9 @@ class Tree {
     rpush(const std::string& path, const std::string& contents,int64_t request_time);
 
     Result
+    lpush(const std::string& path, const std::string& contents,int64_t request_time);
+
+    Result
     lpop(const std::string& path, std::string& contents, int64_t requestTime);
 
     Result
@@ -680,6 +683,7 @@ private:
     ColumnFamilyHandleTable handlers;
     ColumnFamilyHandlePtr getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const;
     std::map<std::string, uint64_t> listIndexes;
+    std::map<std::string, uint64_t> listRevertIndexes;
     std::map<std::string, int64_t> expireCache;
 #endif // ROCKSDB_FSM_REAL
 

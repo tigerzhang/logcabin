@@ -191,6 +191,12 @@ class ClientImpl {
                const Condition& condition,
                TimePoint timeout);
 
+    Result lpush(const std::string& path,
+               const std::string& workingDirectory,
+               const std::string& contents,
+               const Condition& condition,
+               TimePoint timeout);
+
     Result lpop(const std::string& path,
                 const std::string& workingDirectory,
                 const Condition& condition,

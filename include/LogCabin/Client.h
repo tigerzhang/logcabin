@@ -540,6 +540,11 @@ class Tree {
     rpushEx(const std::string& path, const std::string& contents);
 
     Result
+    lpush(const std::string& path, const std::string& contents);
+    void
+    lpushEx(const std::string& path, const std::string& contents);
+
+    Result
     expire(const std::string& path, const std::string& contents);
 
     Result

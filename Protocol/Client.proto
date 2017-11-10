@@ -375,12 +375,13 @@ message ReadWriteTree {
         optional Write sadd = 7;
         optional Write srem = 8;
         optional Write pub = 9;
-        optional Write rpush = 12;
+        optional Write lpush = 12;
         optional RemoveDirectory lpop = 13;
         optional Lrem lrem = 14;
         optional Write ltrim = 15;
         optional Expire expire = 16;
         optional int64 request_time = 17;
+        optional Write rpush = 18;
     }
     message Response {
         optional Status status = 1;
