@@ -27,7 +27,10 @@ set(LIBEVENT_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
 set(LIBEVENT_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
 
 # Vars for building protobuf
-set(PROTOC protoc)
+set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
+set(PROTOBUF_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+set(PROTOBUF_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
+set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
 
 if (APPLE)
     message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
@@ -108,6 +111,28 @@ elseif (UNIX)
         )
     endif()
 
+    if (EXISTS ${PROTOBUF_REL_DIR})
+        message(STATUS "Use: " ${PROTOBUF_REL_DIR})
+    else()
+        message(STATUS "Building protobuf => " ${PROTOBUF_SOURCE_DIR})
+        execute_process(
+                COMMAND "tar" "-xf" "protobuf-2.6.1.tar.gz"
+                WORKING_DIRECTORY ${THIRD_PARTY_DEPS_DIR}
+        )
+
+        execute_process(
+                COMMAND "./configure" --prefix=${PROTOBUF_REL_DIR}
+                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" -j2
+                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+        )
+        execute_process(
+                COMMAND "make" install
+                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
+        )
+    endif()
 else ()
     message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
 endif ()
@@ -297,6 +322,8 @@ endif ()
 add_executable(LogCabin ${SOURCE_FILES})
 
 target_link_libraries(LogCabin ${LIBS})
+
+include_directories(${PROTOBUF_REL_DIR}/include)
 
 include_directories(${LIBEVENT_REL_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}
