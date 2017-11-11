@@ -460,7 +460,6 @@ main(int argc, char** argv)
                         content += "," + *it;
                     }
                 }
-                std::out << content;
                 break;
             }
         }

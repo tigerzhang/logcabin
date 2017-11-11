@@ -27,10 +27,7 @@ set(LIBEVENT_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
 set(LIBEVENT_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${LIBEVENT_SOURCE_DIR_NAME})
 
 # Vars for building protobuf
-set(PROTOBUF_SOURCE_DIR_NAME protobuf-2.6.1)
-set(PROTOBUF_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
-set(PROTOBUF_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${PROTOBUF_SOURCE_DIR_NAME})
-set(PROTOC ${PROTOBUF_REL_DIR}/bin/protoc)
+set(PROTOC protoc)
 
 if (APPLE)
     message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
@@ -111,29 +108,9 @@ elseif (UNIX)
         )
     endif()
 
-    # building protobuf
-    if (EXISTS ${PROTOBUF_REL_DIR})
-        message(STATUS "Use: " ${PROTOBUF_REL_DIR})
-    else()
-        message(STATUS "Building protobuf => " ${PROTOBUF_SOURCE_DIR})
-        execute_process(
-                COMMAND "./configure" --prefix=${PROTOBUF_REL_DIR}
-                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-        )
-        execute_process(
-                COMMAND "make" -j2
-                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-        )
-        execute_process(
-                COMMAND "make" install
-                WORKING_DIRECTORY ${PROTOBUF_SOURCE_DIR}
-        )
-    endif()
 else ()
     message(STATUS "Cannot build or install 3rd dependency on non-Linux machine")
 endif ()
-
-include_directories(${PROTOBUF_REL_DIR}/include)
 
 SET(SUBMODULE_LIBS ${GTEST_REL_DIR}/${GTEST_LIB_NAME}
                    ${ROCKSDB_REL_DIR}/${ROCKSDB_LIB_NAME})
@@ -297,7 +274,7 @@ if (APPLE)
     message(STATUS "Can not find library in non-Linux machine")
 elseif (UNIX)
     find_library(LZ4_LIB_STATIC NAMES liblz4.a)
-    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" PATHS /usr/lib)
+    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a")
     find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
     find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
     find_library(BZ2_LIB_STATIC NAMES libbz2.a)
@@ -388,7 +365,9 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
 add_executable(Test ${TEST_SOURCE_FILES})
+add_executable(Rocksdbtest rocksdb.cpp)
 target_link_libraries(Test logcabin ${LIBS})
+target_link_libraries(Rocksdbtest ${LIBS} pthread)
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/ServerControl RENAME logcabinctl DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)

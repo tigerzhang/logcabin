@@ -436,7 +436,7 @@ Tree::Tree() :
     worker_ctx.ClearFlags();
 #endif // ROCKSDB_FSM
 #ifdef ROCKSDB_FSM
-    writeOptions.disableWAL = this->disableWAL;
+//    writeOptions.disableWAL = this->disableWAL;
 #endif
 }
 
@@ -455,6 +455,7 @@ void Tree::Init(std::string& path) {
     serverDir = path;
     rocksdb::Options options;
     options.create_if_missing = true;
+    options.max_open_files = 1024;
     options.statistics = rocksdb::CreateDBStatistics();
     options.stats_dump_period_sec = 1;
     options.dump_malloc_stats = true;

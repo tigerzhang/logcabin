@@ -1039,7 +1039,9 @@ ClientImpl::lrange(const std::string& path,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
-//    output = response.read().listR
+    output = std::vector<std::string>(
+                    response.list_read().elem().begin(),
+                    response.list_read().elem().end());
     return Result();
 }
 

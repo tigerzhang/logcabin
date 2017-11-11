@@ -764,7 +764,7 @@ TEST_F(TreeTreeTest, lrange)
 TEST_F(TreeTreeTest, ltrim)
 {
     auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    std::string ouput;
+    std::vector<std::string> ouput;
     long now = timeSpec.tv_sec;
     EXPECT_OK(tree.rpush("/r", "one", now));
     EXPECT_OK(tree.rpush("/r", "two", now));
@@ -772,11 +772,11 @@ TEST_F(TreeTreeTest, ltrim)
 
     EXPECT_OK(tree.ltrim("/r", "1 -1", now));
     EXPECT_OK(tree.lrange("/r", "0 -1", ouput));
-    EXPECT_EQ("/r:l:0000001:two,/r:l:0000002:three,", ouput);
+    EXPECT_EQ((std::vector<std::string>{"two", "three"}), ouput);
 
     EXPECT_OK(tree.ltrim("/r", "0 0", now));
     EXPECT_OK(tree.lrange("/r", "0 -1", ouput));
-    EXPECT_EQ("/r:l:0000001:two,", ouput);
+    EXPECT_EQ(std::vector<std::string>{"two"}, ouput);
 }
 } // namespace LogCabin::Tree::<anonymous>
 } // namespace LogCabin::Tree

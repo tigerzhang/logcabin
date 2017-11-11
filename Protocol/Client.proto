@@ -321,7 +321,7 @@ message ReadOnlyTree {
         message ListRead{
             repeated string elem = 1;
         }
-        optional ListRead listRead = 5;
+        optional ListRead list_read = 5;
     }
 }
 
