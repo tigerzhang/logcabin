@@ -740,7 +740,7 @@ TEST_F(TreeTreeTest, removeFile)
 TEST_F(TreeTreeTest, lrange)
 {
     auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    std::string ouput;
+    std::vector<std::string> ouput;
     long now = timeSpec.tv_sec;
     EXPECT_OK(tree.rpush("/r", "one", now));
     EXPECT_OK(tree.rpush("/r", "two", now));
@@ -749,16 +749,16 @@ TEST_F(TreeTreeTest, lrange)
     EXPECT_OK(tree.lrange("/r", "0 0", ouput));
     //FIXME:this case is for current testing purpos,
     // we should use lrange to read rpushed result
-    EXPECT_EQ("/r:l:0000000:one,", ouput);
+    EXPECT_EQ(std::vector<std::string>{ "one" }, ouput);
 
     EXPECT_OK(tree.lrange("/r", "-3 2", ouput));
-    EXPECT_EQ("/r:l:0000000:one,/r:l:0000001:two,/r:l:0000002:three,", ouput);
+    EXPECT_EQ((std::vector<std::string>{ "one" , "two", "three"}), ouput);
 
     EXPECT_OK(tree.lrange("/r", "-100 100", ouput));
-    EXPECT_EQ("/r:l:0000000:one,/r:l:0000001:two,/r:l:0000002:three,", ouput);
+    EXPECT_EQ((std::vector<std::string>{ "one" , "two", "three"}), ouput);
 
     EXPECT_OK(tree.lrange("/r", "5 10", ouput));
-    EXPECT_EQ("", ouput);
+    EXPECT_EQ(std::vector<std::string>{}, ouput);
 }
 
 TEST_F(TreeTreeTest, ltrim)

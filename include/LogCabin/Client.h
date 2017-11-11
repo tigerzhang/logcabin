@@ -554,13 +554,14 @@ class Tree {
 
     Result
     lrem(const std::string& path, const std::string& contents);
+
     void
     lremEx(const std::string& path, const std::string& contents);
 
     Result
     ltrim(const std::string& path, const std::string& contents);
 
-    std::string
+    std::vector<std::string>
     lrange(const std::string& path, const std::string& contents);
 
     /**

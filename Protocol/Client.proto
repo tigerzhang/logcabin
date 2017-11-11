@@ -318,6 +318,10 @@ message ReadOnlyTree {
             required bytes contents = 1;
         }
         optional Read read = 4;
+        message ListRead{
+            repeated string elem = 1;
+        }
+        optional ListRead listRead = 5;
     }
 }
 

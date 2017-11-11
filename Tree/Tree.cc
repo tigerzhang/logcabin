@@ -2123,11 +2123,11 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
 }
 
 Result
-Tree::lrange(const std::string& symbolicPath, const std::string& args, std::string& output)
+Tree::lrange(const std::string& symbolicPath, const std::string& args, std::vector<std::string>& output)
 {
     ++numLRANGEAttempted;
     Result result;
-    output = "";
+    output.clear() ;
 
     VERBOSE("LRANGE command: path=%s, args=%s\n", symbolicPath.c_str(), args.c_str());
 
@@ -2195,12 +2195,12 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
 
             if (start > stop) {
                 result.status = Status::OK;
-                output = "";
             } else {
                 start = start == -1 ? 0 : start;
                 VERBOSE("get list range: [%d,%d]\n", start, stop);
 
-                s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &output);
+                std::string content;
+                s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &content);
                 if (s.ok()) {
                     result.status = Status::OK;
                 }
@@ -2210,7 +2210,8 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::stri
                 auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
                 for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
                     if (index >= start && index <= stop) {
-                        output += iter->key().ToString() + ":" + iter->value().ToString() + ",";
+                        std::string currentContent = iter->value().ToString();
+                        output.push_back(currentContent);
                         result.status = Status::OK;
                         if (index == stop) {
                             break;

@@ -1023,9 +1023,9 @@ ClientImpl::lrange(const std::string& path,
                    const Condition& condition,
                    const std::string& args,
                    TimePoint timeout,
-                   std::string& output)
+                   std::vector<std::string>& output)
 {
-    output = "";
+    output.clear();
     std::string realPath;
     Result result = canonicalize(path, workingDirectory, realPath);
     if (result.status != Status::OK)
@@ -1039,7 +1039,7 @@ ClientImpl::lrange(const std::string& path,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
-    output = response.read().contents();
+//    output = response.read().listR
     return Result();
 }
 

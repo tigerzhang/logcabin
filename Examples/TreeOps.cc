@@ -446,7 +446,21 @@ main(int argc, char** argv)
                 break;
             }
             case Command::LRANGE: {
-                std::string contents = tree.lrange(path, readStdin());
+                std::vector<std::string> contents_list = tree.lrange(path, readStdin());
+                auto it = contents_list.begin();
+                std::string content = "";
+                for(; it != contents_list.end(); it++)
+                {
+                    if("" == content)
+                    {
+                        content = *it;
+                    }
+                    else
+                    {
+                        content += "," + *it;
+                    }
+                }
+                std::out << content;
                 break;
             }
         }

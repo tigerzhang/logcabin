@@ -220,7 +220,7 @@ class ClientImpl {
                   const Condition& condition,
                   const std::string& args,
                   TimePoint timeout,
-                  std::string& output);
+                  std::vector<std::string>& output);
 
     /**
      * Low-level interface to ServerControl service used by

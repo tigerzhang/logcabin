@@ -477,7 +477,7 @@ class Tree {
     read(const std::string& path, std::string& contents);
 
     Result
-    lrange(const std::string& path, const std::string& args, std::string& output);
+    lrange(const std::string& path, const std::string& args, std::vector<std::string>& output);
 
     Result
     head(const std::string& path, std::string& contents) const;

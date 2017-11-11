@@ -603,10 +603,10 @@ Tree::readEx(const std::string& path) const
     return contents;
 }
 
-std::string
+std::vector<std::string>
 Tree::lrange(const std::string& path, const std::string& contents)
 {
-    std::string output;
+    std::vector<std::string> output;
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
     treeDetails->clientImpl->lrange(
            path,
