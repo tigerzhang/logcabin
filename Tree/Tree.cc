@@ -436,7 +436,8 @@ Tree::Tree() :
     worker_ctx.ClearFlags();
 #endif // ROCKSDB_FSM
 #ifdef ROCKSDB_FSM
-//    writeOptions.disableWAL = this->disableWAL;
+    writeOptions.disableWAL = this->disableWAL;
+    writeOptions.sync = false;
 #endif
 }
 
@@ -741,6 +742,7 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 #ifdef ROCKSDB_FSM
     try {
         ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
+
         rocksdb::ColumnFamilyHandle* pcf = cfp.get();
         if (NULL == pcf) {
             PANIC("Get cf failed");
@@ -751,9 +753,10 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
         readOptions.snapshot = snapshot;
         auto it = rdb->NewIterator(readOptions, pcf);
         for (it->SeekToFirst(); it->Valid(); it->Next()) {
-            VERBOSE("iter: key %s value %s",
+            VERBOSE("iter: key %s value %s , dumped %d",
                     it->key().ToString().c_str(),
-                    it->value().ToString().c_str());
+                    it->value().ToString().c_str(),
+                    keyDumped);
 //        std::cout << "key: " << it->key().ToString() << " value: " << it->value().ToString() << std::endl;
             Snapshot::KeyValue kv;
             kv.set_key(it->key().ToString());
@@ -766,7 +769,6 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
         NOTICE("key dumped: %d", keyDumped);
     } catch (std::exception e) {
         ERROR("Tree dump snapshot failed: %s", e.what());
-        rdb->ReleaseSnapshot(snapshot);
     };
 #endif // ROCKDB_FSM_REAL
 }

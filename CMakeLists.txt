@@ -102,7 +102,7 @@ elseif (UNIX)
                 WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
         )
         execute_process(
-                COMMAND "make" -j${PROCESSOR_NUM}
+                COMMAND "make" -j2
                 WORKING_DIRECTORY ${LIBEVENT_SOURCE_DIR}
         )
         execute_process(
