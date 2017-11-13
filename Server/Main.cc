@@ -43,6 +43,7 @@ class OptionParser {
         , debugLogFilename() // empty for default
         , pidFilename() // empty for none
         , testConfig(false)
+        , versionOutput(false)
     {
         while (true) {
             static struct option longOptions[] = {
@@ -53,9 +54,10 @@ class OptionParser {
                {"log",  required_argument, NULL, 'l'},
                {"pidfile",  required_argument, NULL, 'p'},
                {"test",  no_argument, NULL, 't'},
+               {"version",  no_argument, NULL, 'v'},
                {0, 0, 0, 0}
             };
-            int c = getopt_long(argc, argv, "bc:dhl:p:t", longOptions, NULL);
+            int c = getopt_long(argc, argv, "bc:dhl:p:tv", longOptions, NULL);
 
             // Detect the end of the options.
             if (c == -1)
@@ -82,6 +84,9 @@ class OptionParser {
                     break;
                 case 't':
                     testConfig = true;
+                    break;
+                case 'v':
+                    versionOutput = true;
                     break;
                 case '?':
                 default:
@@ -158,6 +163,14 @@ class OptionParser {
             << std::endl
             << std::endl
 
+            << "  -v, --version                "
+            << "check the build version of this bin"
+            << std::endl
+            << "                               "
+            << "and exit"
+            << std::endl
+            << std::endl
+
             << "Signals:"
             << std::endl
 
@@ -178,6 +191,7 @@ class OptionParser {
     std::string debugLogFilename;
     std::string pidFilename;
     bool testConfig;
+    bool versionOutput;
 };
 
 /**
@@ -282,6 +296,12 @@ main(int argc, char** argv)
 
         // Parse command line args.
         OptionParser options(argc, argv);
+
+        if(options.versionOutput)
+        {
+            std::cout << "Logcabin build version:" << __DATE__ << "," << __TIME__ << std::endl;
+            return 0;
+        }
 
         if (options.testConfig) {
             Server::Globals globals;
