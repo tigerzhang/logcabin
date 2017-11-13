@@ -372,7 +372,9 @@ message ReadWriteTree {
         message Lrem{
             required string path = 1;
             required string contents = 2;
-            //
+            // if count = 0, remove all elements equals to contents in path
+            // if count > 0, remove count elements from head to tail
+            // if count < 0, remove -count elements from tail to head
             required int32 count = 3;
         }
 

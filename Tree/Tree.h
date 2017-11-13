@@ -448,7 +448,7 @@ class Tree {
     lpop(const std::string& path, std::string& contents, int64_t requestTime);
 
     Result
-    lrem(const std::string& path, const std::string& contents, int64_t requestTime);
+    lrem(const std::string& path, const std::string& contents, const int32_t count, int64_t requestTime);
 
     Result
     ltrim(const std::string& path, const std::string& contents, int64_t requestTime);

@@ -1724,7 +1724,7 @@ Tree::lpop(const std::string& symbolicPath, std::string& contents, int64_t reque
 }
 
 Result
-Tree::lrem(const std::string& symbolicPath, const std::string &contents, int64_t requestTime) {
+Tree::lrem(const std::string& symbolicPath, const std::string &contents, const int32_t count, int64_t requestTime) {
     ++numLRemAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
@@ -1735,16 +1735,33 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents, int64_t
         PANIC("Get cf failed");
     }
 
+    int removed = 0;
+
     result.status = Status::CONDITION_NOT_MET;
     std::string prefix = symbolicPath + ":l:";
     auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+    iter->Seek(prefix);
+    //if count < 0, reverse the searching
+    if(count < 0){
+        iter->SeekToLast();
+    }
+    while(iter->Valid() && iter->key().starts_with(prefix) &&
+            (count == 0 || std::abs(count) > removed))
+    {
+
         if (iter->value() == contents) {
             rdb->Delete(writeOptions, pcf, iter->key());
             result.status = Status::OK;
-            break;
+            removed++;
+        }
+        if(count < 0){
+            iter->Prev();
+        }else{
+            iter->Next();
         }
     }
+    delete iter;
+
     //TODO: need to be abstract as function
     std::string listLengthStr;
     int listLength;
@@ -1753,7 +1770,7 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents, int64_t
     s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
     if (s.ok()) {
         listLength = atoi(listLengthStr.c_str());
-        listLength--;
+        listLength -= removed;
         if (listLength <= 0) {
             rdb->Delete(writeOptions, pcf, keyStoreListLength);
         } else {
@@ -1761,7 +1778,6 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents, int64_t
         }
         VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
     }
-    delete iter;
 #endif
     ++numLRemSuccess;
     return result;

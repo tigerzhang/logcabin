@@ -616,13 +616,13 @@ TEST_F(TreeTreeTest, lpush)
     EXPECT_OK(tree.read("/r", contents));
     //FIXME:this case is for current testing purpos,
     // we should use lrange to read rpushed result
-    EXPECT_EQ("/r:l:0000000:foo1,/r:l:0000001:foo2,", contents);
+    EXPECT_EQ("/r:l:0100000:foo1,/r:l:0100001:foo2,", contents);
 
-    EXPECT_OK(tree.lrem("/r", "foo2", now));
+    EXPECT_OK(tree.lrem("/r", "foo2", 0, now));
     EXPECT_OK(tree.read("/r", contents));
     //FIXME:this case is for current testing purpos,
     // we should use lrange to read rpushed result
-    EXPECT_EQ("/r:l:0000000:foo1,", contents);
+    EXPECT_EQ("/r:l:0100000:foo1,", contents);
 
     std::string popedResult;
     EXPECT_OK(tree.lpop("/r", popedResult, now));
@@ -712,7 +712,7 @@ TEST_F(TreeTreeTest, expire)
     //should expire now
     result = tree.read("/a", contents);
     
-    EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
+    EXPECT_EQ(Status::KEY_EXPIRED, result.status);
 }
 
 TEST_F(TreeTreeTest, removeFile)

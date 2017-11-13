@@ -92,7 +92,9 @@ readWriteTreeRPC(Tree& tree,
         response.set_error(contents);
     } else if (request.has_lrem()) {
         result = tree.lrem(request.lrem().path(),
-                           request.lrem().contents(), request.request_time());
+                           request.lrem().contents(),
+                           request.lrem().count(),
+                           request.request_time());
     } else if (request.has_make_directory()) {
         result = tree.makeDirectory(request.make_directory().path());
     } else if (request.has_remove_directory()) {

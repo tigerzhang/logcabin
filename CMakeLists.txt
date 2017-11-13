@@ -392,9 +392,7 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
 add_executable(Test ${TEST_SOURCE_FILES})
-add_executable(Rocksdbtest rocksdb.cpp)
 target_link_libraries(Test logcabin ${LIBS})
-target_link_libraries(Rocksdbtest ${LIBS} pthread)
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/ServerControl RENAME logcabinctl DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
