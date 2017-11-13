@@ -610,6 +610,31 @@ TEST_F(TreeTreeTest, lpush)
 {
     auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
     long now = timeSpec.tv_sec;
+    EXPECT_OK(tree.lpush("/r", "foo1", now));
+    EXPECT_OK(tree.lpush("/r", "foo2", now));
+    std::string contents;
+    EXPECT_OK(tree.read("/r", contents));
+    //FIXME:this case is for current testing purpos,
+    // we should use lrange to read rpushed result
+    EXPECT_EQ("/r:l:0099998:foo2,/r:l:0099999:foo1,", contents);
+
+    EXPECT_OK(tree.lrem("/r", "foo2", 0, now));
+    EXPECT_OK(tree.read("/r", contents));
+    //FIXME:this case is for current testing purpos,
+    // we should use lrange to read rpushed result
+    EXPECT_EQ("/r:l:0099999:foo1,", contents);
+
+    std::string popedResult;
+    EXPECT_OK(tree.lpop("/r", popedResult, now));
+    Result result = tree.read("/r", contents);
+    EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
+}
+
+
+TEST_F(TreeTreeTest, rpush)
+{
+    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
+    long now = timeSpec.tv_sec;
     EXPECT_OK(tree.rpush("/r", "foo1", now));
     EXPECT_OK(tree.rpush("/r", "foo2", now));
     std::string contents;
