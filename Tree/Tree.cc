@@ -2429,6 +2429,7 @@ void Tree::cleanUpExpireKeyEvent(){
         }
         lastCheckKey = it->key().ToString();
     }
+    delete it;
 
 }
 
