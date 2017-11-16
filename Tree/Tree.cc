@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <rocksdb/db.h>
 #include <rocksdb/statistics.h>
+#include <rocksdb/slice.h>
 #include <rocksdb/snapshot.h>
 #include <rocksdb/options.h>
 #include <rocksdb/iterator.h>
@@ -1482,25 +1483,22 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
 }
 
 Result
-Tree::expire(const std::string &symbolicPath, const std::string &contents, const uint32_t op, const int64_t requestTime) {
+Tree::expire(const std::string &symbolicPath, const int64_t expireIn, const uint32_t op, const int64_t requestTime) {
     ++numExpireAttempted;
+    VERBOSE("expire request recv for:%s", symbolicPath.c_str());
     Result result;
-    //TODO: you should save this as int to save storage, but let's make it simple first
     int64_t expireAt = 0;
-    std::string expireTimeString = "";
     if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
     {
         //this is a expire clean up request, no need to check expire, it will be removed after all
         VERBOSE("this is a clean up request for :%s", symbolicPath.c_str());
-        expireTimeString = contents;
     } 
     else
     {
         //need to check expire before setting a new expire
         VERBOSE("this is a set up request for :%s", symbolicPath.c_str());
         checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-        expireAt = std::atoi(contents.c_str()) + requestTime;
-        expireTimeString = std::to_string((uint)expireAt);
+        expireAt = requestTime + expireIn;
 
     }
 
@@ -1513,63 +1511,28 @@ Tree::expire(const std::string &symbolicPath, const std::string &contents, const
 
     rocksdb::Status s;
     std::string keyMeta = getMetaKeyOfExpireSetting(symbolicPath);
-    std::string originKeyMeta = symbolicPath + ":meta";
-    std::string originKeyMetaInfo;
-    rocksdb::Status originKeyMetaGetResult = rdb->Get(readOptions, pcf, originKeyMeta, &originKeyMetaInfo);
-    if(originKeyMetaGetResult.ok())
+    //but the basic routine is samesame
+    //no need to check key exists, this is a complicate key, so it must be exists
+    if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
     {
-        //but the basic routine is samesame
-        //no need to check key exists, this is a complicate key, so it must be exists
-        if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
+        std::string content = "";
+        auto getOldExpireResult = rdb->Get(readOptions, pcf, keyMeta, &content);
+        if(getOldExpireResult.ok())
         {
-            std::string oldExpireTime = "";
-            auto getOldExpireResult = rdb->Get(readOptions, pcf, keyMeta, &oldExpireTime);
-            if(getOldExpireResult.ok())
+            const int64_t oldExpireTime = *((const int64_t*)content.c_str());
+            if(oldExpireTime == expireIn)
             {
-                if(oldExpireTime == contents)
-                {
-                    cleanExpiredKeys(symbolicPath);
-                }
-                //not same, might be triggered by read request when doing write request 
+                cleanExpiredKeys(symbolicPath);
             }
-            //nothing found, do nothing, can be duplicate request 
-        }else{
-            rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
-            expireCache[symbolicPath] = expireAt;
-            //should maintain a list to make sure it can hold in memory
-            //but currently it's ok to stop here, let's make it work first
+            //not same, might be triggered by read request when doing write request 
         }
+        //nothing found, do nothing, can be duplicate request 
+    }else{
+        rdb->Put(writeOptions, pcf, keyMeta, rocksdb::Slice((const char*)&expireAt, sizeof(int64_t)));
+        expireCache[symbolicPath] = expireAt;
+        //should maintain a list to make sure it can hold in memory
+        //but currently it's ok to stop here, let's make it work first
     }
-    else
-    {
-
-        //stage one, check key exists
-        std::string content;
-        s = rdb->Get(readOptions, pcf, symbolicPath, &content);
-        if (s.ok()) {
-            if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
-            {
-                std::string oldExpireTime = "";
-                auto getOldExpireResult = rdb->Get(readOptions, pcf, keyMeta, &oldExpireTime);
-                if(getOldExpireResult.ok())
-                {
-                    if(oldExpireTime == contents)
-                    {
-                        cleanExpiredKeys(symbolicPath);
-                    }
-                    //not same, might be triggered by read request when doing write request 
-                }
-                //nothing found, do nothing, can be duplicate request 
-            }else{
-                rdb->Put(writeOptions, pcf, keyMeta, expireTimeString);
-                expireCache[symbolicPath] = expireAt;
-            }
-        }else{
-            result.status = Status::LOOKUP_ERROR;
-            return result;
-        }
-    }
-
 
 #endif
     ++numExpireSuccess;
@@ -1895,7 +1858,7 @@ bool Tree::checkIsKeyExpiredForReadRequest(const std::string& symbolicPath)
     return false;
 }
 
-void Tree::appendCleanExpireRequestLog(const std::string &path, const std::string& content)
+void Tree::appendCleanExpireRequestLog(const std::string &path, const int64_t expireAt)
 {
     if(NULL == raft ||
             raft->state != Server::RaftConsensus::State::LEADER ){
@@ -1907,7 +1870,7 @@ void Tree::appendCleanExpireRequestLog(const std::string &path, const std::strin
     Protocol::Client::StateMachineCommand::Request command;
     command.mutable_tree()->mutable_expire()->set_path(path);
     command.mutable_tree()->mutable_expire()->set_operation(LogCabin::Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS);
-    command.mutable_tree()->mutable_expire()->set_contents(content);
+    command.mutable_tree()->mutable_expire()->set_expire_in(expireAt);
     command.mutable_tree()->mutable_exactly_once()->set_client_id(0);
     command.mutable_tree()->mutable_exactly_once()->set_rpc_number(index);
     command.mutable_tree()->mutable_exactly_once()->set_first_outstanding_rpc(index);
@@ -1946,7 +1909,7 @@ int64_t Tree::getKeyExpireTime(const std::string& path)
     rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, key, &contents);
     if(s.ok())
     {
-        return std::atoi(contents.c_str());
+        return *((const int64_t*)contents.c_str());
     }else{
         return -1;
     }
@@ -1968,13 +1931,15 @@ Tree::KeyExpireStatus Tree::isKeyExpired(const std::string& path, int64_t reques
         auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
         now = timeSpec.tv_sec;
     }
+
     if(now > expireAt)
     {
         //don'y delete anything here, just return if the reqeust time is not zero
         if(IS_REQUEST_FROM_READ)
         {
-            appendCleanExpireRequestLog(path, std::to_string(expireAt));
+            appendCleanExpireRequestLog(path, expireAt);
         }
+        VERBOSE("key expired:%s", path.c_str());
         return Tree::KeyExpireStatusExpired;
     }
     else
@@ -1993,7 +1958,7 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
     if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
     {
 
-        result.status = Status::KEY_EXPIRED;
+        result.status = Status::LOOKUP_ERROR;
         result.error = "Key expired";
         return result; 
     }
@@ -2152,7 +2117,7 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::vect
 
     if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
     {
-        result.status = Status::KEY_EXPIRED;
+        result.status = Status::LOOKUP_ERROR;
         result.error = "Key expired";
         return result;
     }
@@ -2434,14 +2399,14 @@ void Tree::cleanUpExpireKeyEvent(){
             break;
         }
         std::string content = it->value().ToString();
-        long expireSecond = std::atoi(content.c_str());
+        int64_t expireSecond = *((const int64_t*)content.c_str());
         if(expireSecond < now)
         {
             std::string key = it->key().ToString();
             //8 = strlen of ":meta:e:"
             std::string path = key.substr(8);
-            VERBOSE("the path :%s, should be expired in :%s", path.c_str(), content.c_str());
-            appendCleanExpireRequestLog(path, content);
+            VERBOSE("the path :%s, should be expired at :%ld", path.c_str(), expireSecond);
+            appendCleanExpireRequestLog(path, expireSecond);
         }
         lastCheckKey = it->key().ToString();
     }

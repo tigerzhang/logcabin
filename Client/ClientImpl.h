@@ -154,7 +154,7 @@ class ClientImpl {
     /// See Tree::expire.
     Result expire(const std::string& path,
                   const std::string& workingDirectory,
-                  const std::string& contents,
+                  const int64_t expireIn,
                   const Condition& condition,
                   TimePoint timeout);
 

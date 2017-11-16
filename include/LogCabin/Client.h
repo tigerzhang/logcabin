@@ -209,6 +209,11 @@ enum class Status {
      * before the timeout elapsed.
      */
     TIMEOUT = 5,
+
+    /**
+     * The key is expired when this request is reached
+     */
+    KEY_EXPIRED = 6,
 };
 
 /**
@@ -545,7 +550,7 @@ class Tree {
     lpushEx(const std::string& path, const std::string& contents);
 
     Result
-    expire(const std::string& path, const std::string& contents);
+    expire(const std::string& path, const int64_t contents);
 
     Result
     lpop(const std::string& path, const std::string& contents);

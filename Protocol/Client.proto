@@ -362,7 +362,7 @@ message ReadWriteTree {
         message Expire{
             required string path = 1;
             //unit: second
-            required string contents = 2;
+            required int64 expire_in = 2;
             //don't set this if you are called from client side,
             //defalut will be SET_UP_EXPIRE_IN. 
             //Set to CLEAN_UP_EXPIRE_KEYS to clean the expire, but the expire should be same as the database's data
@@ -375,7 +375,7 @@ message ReadWriteTree {
             // if count = 0, remove all elements equals to contents in path
             // if count > 0, remove count elements from head to tail
             // if count < 0, remove -count elements from tail to head
-            required int32 count = 3;
+            required int64 count = 3;
         }
 
         optional Write sadd = 7;

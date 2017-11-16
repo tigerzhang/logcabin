@@ -457,7 +457,7 @@ class Tree {
      * Do expire, if the op is CLEAN_UP_EXPIRE_KEYS, this api will remove the expire setting on the path, otherwise it will set up an expire timer on the key, the key should be expired in 'expire' seconds, 'expire' must be convertable to int
      */
     Result
-    expire(const std::string& path,const std::string& expire, const uint32_t op, int64_t request_time);
+    expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time);
 
     /**
      * Get the value of a file.
@@ -569,7 +569,7 @@ private:
        this api is used to set up the exactly_once index, so the requested log won't be dropped because of index
     */
     uint64_t zeroSessionIndex;
-    void appendCleanExpireRequestLog(const std::string& path, const std::string& content);
+    void appendCleanExpireRequestLog(const std::string& path, const int64_t expireIn);
 
     /*
        return -1 if key is not in the expire list, reutrn the timestamp (unit: second) if the key exists in expire list

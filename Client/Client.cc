@@ -482,13 +482,13 @@ Tree::lpushEx(const std::string& path, const std::string& contents)
 }
 
 Result
-Tree::expire(const std::string& path, const std::string& contents)
+Tree::expire(const std::string& path, const int64_t expireIn )
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
     return treeDetails->clientImpl->expire(
             path,
             treeDetails->workingDirectory,
-            contents,
+            expireIn,
             treeDetails->condition,
             ClientImpl::absTimeout(treeDetails->timeoutNanos));
 }

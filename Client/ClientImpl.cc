@@ -864,7 +864,7 @@ ClientImpl::pub(const std::string& path,
 Result
 ClientImpl::expire(const std::string& path,
              const std::string& workingDirectory,
-             const std::string& contents,
+             const int64_t expireIn,
              const Condition& condition,
              TimePoint timeout)
 {
@@ -877,7 +877,7 @@ ClientImpl::expire(const std::string& path,
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
     request.mutable_expire()->set_path(realPath);
-    request.mutable_expire()->set_contents(contents.c_str());
+    request.mutable_expire()->set_expire_in(expireIn);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);

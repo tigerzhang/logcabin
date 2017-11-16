@@ -134,7 +134,7 @@ readWriteTreeRPC(Tree& tree,
             operation = Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN;
         }
         result = tree.expire(request.expire().path(),
-                request.expire().contents(),
+                request.expire().expire_in(),
                 operation,
                 request.request_time()
                 );
