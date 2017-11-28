@@ -393,13 +393,12 @@ main(int argc, char** argv)
                 break;
             case Command::READ: {
                 std::string contents = tree.readEx(path);
-                std::cout << "do read rpc success";
+                std::cout << "do read rpc success" << std::endl;
                 std::cout << contents;
                 if (contents.empty() ||
                     contents.at(contents.size() - 1) != '\n') {
                     std::cout << std::endl;
                 } else {
-                    std::cout << "no content is found" << std::endl;
                     std::cout.flush();
                 }
                 break;

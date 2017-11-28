@@ -50,6 +50,7 @@ class ClientService : public RPC::Service {
     std::string getName() const;
 
   private:
+
     ////////// RPC handlers //////////
 
     void getServerInfo(RPC::ServerRPC rpc);
@@ -63,6 +64,11 @@ class ClientService : public RPC::Service {
      * The LogCabin daemon's top-level objects.
      */
     Globals& globals;
+
+    /*
+       if true , this node will allow to return read request for follower
+      */
+    bool allow_follower_read;
 
     // ClientService is non-copyable.
     ClientService(const ClientService&) = delete;

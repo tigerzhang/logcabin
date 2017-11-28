@@ -32,8 +32,14 @@ namespace Server {
 typedef RaftConsensus::ClientResult Result;
 
 ClientService::ClientService(Globals& globals)
-    : globals(globals)
+    : globals(globals),
+    allow_follower_read(false)
 {
+    allow_follower_read = globals.config.read<bool>("allow_follower_read", false);
+    if(allow_follower_read)
+    {
+        NOTICE("You just allowed follwer read on this node!");
+    }
 }
 
 ClientService::~ClientService()
@@ -190,19 +196,27 @@ void
 ClientService::stateMachineQuery(RPC::ServerRPC rpc)
 {
     PRELUDE(StateMachineQuery);
-    std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
-    if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {
-        Protocol::Client::Error error;
-        error.set_error_code(Protocol::Client::Error::NOT_LEADER);
-        std::string leaderHint = globals.raft->getLeaderHint();
-        if (!leaderHint.empty())
-            error.set_leader_hint(leaderHint);
-        rpc.returnError(error);
-        return;
+    if(!allow_follower_read)
+    {
+        //if you don't allow read from follower, you should not skip this
+        std::pair<Result, uint64_t> result = globals.raft->getLastCommitIndex();
+        if (result.first == Result::RETRY || result.first == Result::NOT_LEADER) {
+            Protocol::Client::Error error;
+            error.set_error_code(Protocol::Client::Error::NOT_LEADER);
+            std::string leaderHint = globals.raft->getLeaderHint();
+            if (!leaderHint.empty())
+                error.set_leader_hint(leaderHint);
+            rpc.returnError(error);
+            return;
+        }
+        assert(result.first == Result::SUCCESS);
+        uint64_t logIndex = result.second;
+        globals.stateMachine->wait(logIndex);
     }
-    assert(result.first == Result::SUCCESS);
-    uint64_t logIndex = result.second;
-    globals.stateMachine->wait(logIndex);
+    else
+    {
+        VERBOSE("allowed to read from follower");
+    }
     if (!globals.stateMachine->query(request, response))
         rpc.rejectInvalidRequest();
     rpc.reply(response);
