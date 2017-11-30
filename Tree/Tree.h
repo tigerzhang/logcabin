@@ -22,8 +22,6 @@
 
 #include "Core/ProtoBuf.h"
 
-#include <rocksdb/db.h>
-#include <rocksdb/utilities/checkpoint.h>
 #include <Server/Globals.h>
 
 #ifndef LOGCABIN_TREE_TREE_H
@@ -41,6 +39,7 @@ class ServerStats_Tree;
 
 namespace Tree {
 
+    class TreeStorageLayer;
 /**
  * Status codes returned by Tree operations.
  */
@@ -501,9 +500,7 @@ class Tree {
     void
     updateServerStats(Protocol::ServerStats_Tree& tstats) const;
 
-#ifdef ROCKSDB_FSM
     void setRaft(LogCabin::Server::RaftConsensus* raft);
-#endif // ROCKSDB_FSM_REAL
 
     /**
       scan through meta info of expire key, clean up the expired keys
@@ -667,32 +664,15 @@ private:
     uint64_t numLTrimAttempted;
     uint64_t numLTrimSuccess;
 
-#ifdef ROCKSDB_FSM
-    typedef std::shared_ptr<rocksdb::ColumnFamilyHandle> ColumnFamilyHandlePtr;
-    typedef std::map<std::string, ColumnFamilyHandlePtr> ColumnFamilyHandleTable;
-
     LogCabin::Server::RaftConsensus* raft;
-    rocksdb::DB* rdb;
-    rocksdb::Checkpoint* checkpoint;
-    rocksdb::Snapshot* snapshot;
-    bool disableWAL;
-    rocksdb::WriteOptions writeOptions;
-    rocksdb::ReadOptions readOptions;
-    std::string serverDir;
-    std::string fsmDir;
-    ColumnFamilyHandleTable handlers;
-    ColumnFamilyHandlePtr getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const;
-    std::map<std::string, uint64_t> listIndexes;
-    std::map<std::string, uint64_t> listRevertIndexes;
-    std::map<std::string, int64_t> expireCache;
-#endif // ROCKSDB_FSM_REAL
+
+    std::shared_ptr<TreeStorageLayer> storage_layer; 
 
 #ifdef ARDB_FSM
     ardb::Ardb ardb;
     ardb::Context worker_ctx;
-#endif // ROCKSDB_FSM
+#endif //ARDB_FSM 
 
-    void Reopen();
 }; //class Locabin::Tree::Tree
 
 

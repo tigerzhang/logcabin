@@ -1,4 +1,5 @@
 /* Copyright (c) 2012 Stanford University
+#include "Tree/TreeStorageLayer.h"
  * Copyright (c) 2014 Diego Ongaro
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -18,23 +19,16 @@
 #include <algorithm>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <rocksdb/db.h>
-#include <rocksdb/statistics.h>
-#include <rocksdb/slice.h>
-#include <rocksdb/snapshot.h>
-#include <rocksdb/options.h>
-#include <rocksdb/iterator.h>
 
+#include "Tree/RocksdbTree.h"
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
 #include "Core/Debug.h"
 #include "Core/StringUtil.h"
 #include "Tree/Tree.h"
+#include "Tree/TreeStorageLayer.h"
 
-#ifdef ROCKSDB_FSM
-#include <Server/RaftConsensus.h>
-
-#endif // ROCKSDB_FSM_REAL
+#include "Server/RaftConsensus.h"
 
 namespace LogCabin {
 namespace Tree {
@@ -65,6 +59,9 @@ operator<<(std::ostream& os, Status status)
             break;
         case Status::LIST_EMPTY:
             os << "Status::LIST_EMPTY";
+            break;
+        case Status::KEY_EXPIRED:
+            os << "Status::KEY_EXPIRED";
             break;
     }
     return os;
@@ -410,18 +407,8 @@ Tree::Tree() :
     , ardb()
     , worker_ctx()
     , rdb(NULL)
-#endif // ROCKSDB_FSM
-#ifdef ROCKSDB_FSM
+#endif // ARSDB_FSM
     , raft(NULL)
-    , checkpoint(NULL)
-    , snapshot(NULL)
-    , disableWAL(true)
-    , writeOptions(std::move(rocksdb::WriteOptions()))
-    , listIndexes()
-    , expireCache()
-
-//    , cf(NULL)
-#endif // ROCKSDB_FSM_REAL
 {
     // Create the root directory so that users don't have to explicitly
     // call makeDirectory("/").
@@ -435,74 +422,21 @@ Tree::Tree() :
 
 #ifdef ARDB_FSM
     worker_ctx.ClearFlags();
-#endif // ROCKSDB_FSM
-#ifdef ROCKSDB_FSM
-    writeOptions.disableWAL = this->disableWAL;
-    writeOptions.sync = false;
-#endif
+#endif // ARDB_FSM
+
+    storage_layer = std::make_shared<RocksdbTree>();
 }
 
 Tree::~Tree() {
 }
 
-#ifdef ROCKSDB_FSM
 void Tree::setRaft(LogCabin::Server::RaftConsensus* raft) {
     this->raft = raft;
 }
-#endif // ROCKSDB_FSM_REAL
 
 void Tree::Init(std::string& path) {
 
-#ifdef ROCKSDB_FSM
-    serverDir = path;
-    rocksdb::Options options;
-    options.create_if_missing = true;
-    options.max_open_files = 1024;
-    options.statistics = rocksdb::CreateDBStatistics();
-    options.stats_dump_period_sec = 1;
-    options.dump_malloc_stats = true;
-
-    fsmDir = serverDir + "/rocksdb-fsm";
-
-    rocksdb::Status status;
-    std::vector<std::string> column_families;
-    status = rocksdb::DB::ListColumnFamilies(options, fsmDir, &column_families);
-    if (column_families.empty()) {
-        status = rocksdb::DB::Open(options, fsmDir, &rdb);
-    } else {
-        std::vector<rocksdb::ColumnFamilyDescriptor> column_families_descs(column_families.size());
-        for (size_t i = 0; i < column_families.size(); i++) {
-            column_families_descs[i] = rocksdb::ColumnFamilyDescriptor(column_families[i],
-            rocksdb::ColumnFamilyOptions(options));
-        }
-
-        std::vector<rocksdb::ColumnFamilyHandle*> handler;
-        status = rocksdb::DB::Open(
-                        options,
-                        fsmDir,
-                        column_families_descs,
-                        &handler,
-                        &rdb);
-
-        for (size_t i = 0; i < handler.size(); i++)
-        {
-            rocksdb::ColumnFamilyHandle* h = handler[i];
-            auto name = column_families_descs[i].name;
-            handlers[name].reset(h);
-            NOTICE("Open column family:%s success.", column_families_descs[i].name.c_str());
-        }
-    }
-
-    if (!status.ok()) {
-        PANIC("Failed to open db:%s. %s", fsmDir.c_str(), status.ToString().c_str());
-    }
-
-    if (!status.ok()) {
-        PANIC("Open rocksdb failed %s", status.ToString().c_str());
-    }
-
-#endif // ROCKSDB_FSM_REAL
-
+    storage_layer->Init(path);
 #ifdef ARDB_FSM
     if (ardb.Init("ardb.conf") != 0) {
         PANIC("Open ardb failed.");
@@ -515,55 +449,6 @@ void Tree::Init(std::string& path) {
 
 #endif // ROCKSDB_FSM
 }
-
-#ifdef ROCKSDB_FSM
-Tree::ColumnFamilyHandlePtr
-Tree::getColumnFamilyHandle(std::string cfName, bool create_if_noexist) const {
-//    VERBOSE("cf name: %s", cfName.c_str());
-//    for (auto i : handlers) {
-//        VERBOSE("handlers: %s %lu", i.first.c_str(), i.second.get());
-//    }
-    auto found = handlers.find(cfName);
-    if (found != handlers.end()) {
-//        VERBOSE("Found cf %s:%lu", cfName.c_str(), handlers[cfName].get());
-        return handlers[cfName];
-    }
-    if (!create_if_noexist) {
-        return NULL;
-    }
-
-    // Create Column Family
-//    rocksdb::Options options;
-//    options.create_if_missing = true;
-    rocksdb::ColumnFamilyOptions cf_options;
-    rocksdb::ColumnFamilyHandle* cfh = NULL;
-    rocksdb::Status s = rdb->CreateColumnFamily(cf_options, cfName, &cfh);
-    if (s.ok()) {
-//        s = rdb->Put(rocksdb::WriteOptions(), cfh, "test1", "value1");
-//        VERBOSE("Put after create column family: %s", s.ToString().c_str());
-//        assert(s.ok());
-
-        handlers[cfName].reset(cfh);
-
-//        s = rdb->Put(rocksdb::WriteOptions(), handlers[cfName].get(), "test1", "value1");
-//        VERBOSE("Put after create column family and reset: %s", s.ToString().c_str());
-//        assert(s.ok());
-
-//        std::vector<std::string> column_families;
-//        s = rocksdb::DB::ListColumnFamilies(rocksdb::Options(), fsmDir, &column_families);
-//        for (auto i : column_families) {
-//            VERBOSE("column %s", i.c_str());
-//        }
-
-        NOTICE("Create Column Family Handle with name:%s succeed %lu",
-            cfName.c_str(), handlers[cfName].get());
-        return handlers[cfName];
-    }
-
-    ERROR("Create Column Family Handle:%s failed:%s", cfName.c_str(), s.ToString().c_str());
-    return NULL;
-}
-#endif
 
 Result
 Tree::normalLookup(const Path& path, Directory** parent)
@@ -675,6 +560,7 @@ Tree::findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const {
 void
 Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 {
+    storage_layer->dumpSnapshot(stream);
 #ifdef FSM_MEM
     superRoot.dumpSnapshot(stream);
 #endif // FSM_MEM
@@ -683,7 +569,6 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
     // findLatestSnapshot(&stream);
     const ardb::Ardb* pArdb = &ardb;
     ardb::Ardb* pArdb2 = &ardb;
-#if 1
     const rocksdb::Snapshot* snapshot =
             (rocksdb::Snapshot*)(pArdb->GetSnapshot((ardb::Context&)worker_ctx));
     rocksdb::ReadOptions options;
@@ -703,7 +588,6 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
         ERROR("db is null");
         return;
     }
-#endif
     Snapshot::KeyValue kv;
     kv.set_key("hello");
     kv.set_value("world");
@@ -740,38 +624,6 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 //    pArdb->ReleaseSnapshot((ardb::Context&)worker_ctx);
     NOTICE("key dumped: %d", keyDumped);
 #endif // ROCKSDB_FSM
-#ifdef ROCKSDB_FSM
-    try {
-        ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-
-        rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-        if (NULL == pcf) {
-            PANIC("Get cf failed");
-        }
-
-        int keyDumped = 0;
-        rocksdb::ReadOptions readOptions = rocksdb::ReadOptions();
-        readOptions.snapshot = snapshot;
-        auto it = rdb->NewIterator(readOptions, pcf);
-        for (it->SeekToFirst(); it->Valid(); it->Next()) {
-            VERBOSE("iter: key %s value %s , dumped %d",
-                    it->key().ToString().c_str(),
-                    it->value().ToString().c_str(),
-                    keyDumped);
-//        std::cout << "key: " << it->key().ToString() << " value: " << it->value().ToString() << std::endl;
-            Snapshot::KeyValue kv;
-            kv.set_key(it->key().ToString());
-            kv.set_value(it->value().ToString());
-            stream.writeMessage(kv);
-
-            keyDumped++;
-        }
-        delete it;
-        NOTICE("key dumped: %d", keyDumped);
-    } catch (std::exception e) {
-        ERROR("Tree dump snapshot failed: %s", e.what());
-    };
-#endif // ROCKDB_FSM_REAL
 }
 
 /**
@@ -803,55 +655,8 @@ Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     NOTICE("import backup status: %s", worker_ctx.GetReply().Status().c_str());
 #endif // ROCKSDB_FSM
 #ifdef ROCKSDB_FSM
-    {
-        //drop column
-        ColumnFamilyHandlePtr columnFamilyPtr = getColumnFamilyHandle("cf0", true);
-        rocksdb::ColumnFamilyHandle* pcf = columnFamilyPtr.get();
-        if (NULL == pcf) {
-            PANIC("Get cf failed");
-        }
-        rocksdb::Status status = rdb->DropColumnFamily(pcf);
-        if (!status.ok()) {
-            PANIC("Drop default column family failed: %s", status.ToString().c_str());
-            pcf = NULL;
-        }
-        Reopen();
-    }
-
-    //re init column family, and then insert value into it
-    ColumnFamilyHandlePtr columnFamilyPtr = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = columnFamilyPtr.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-    Snapshot::KeyValue kv;
-    std::string error = stream.readMessage(kv);
-    while(error.empty()) {
-        VERBOSE("load key %s value %s", kv.key().c_str(), kv.value().c_str());
-        auto writeResult = rdb->Put(writeOptions, pcf, kv.key(), kv.value());
-        if(writeResult.ok())
-        {
-            error = stream.readMessage(kv);
-        }else{
-            PANIC("Can not load snapshot : %s", writeResult.ToString().c_str());
-        }
-    }
-    NOTICE("Load snapshot succeed.");
 
 #endif
-}
-
-void Tree::Reopen() {
-    for (auto handle = handlers.begin();
-         handle != handlers.end();
-         handle++
-    ) {
-        handlers.erase(handle);
-    }
-    delete rdb;
-    rdb = NULL;
-
-    Init(serverDir);
 }
 
 Result
@@ -891,6 +696,7 @@ Result
 Tree::makeDirectory(const std::string& symbolicPath)
 {
     ++numMakeDirectoryAttempted;
+    Result result = storage_layer->makeDirectory(symbolicPath);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -907,21 +713,6 @@ Tree::makeDirectory(const std::string& symbolicPath)
     }
 #endif // MEM_FSM
 
-#ifdef ROCKSDB_FSM
-    Result result;
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string key = symbolicPath ;
-    if("" == symbolicPath || *symbolicPath.end() != '/')
-    {
-        key += '/';
-    }
-    rdb->Put(writeOptions, pcf, key, "dir");
-#endif // ROCKSDB_FSM_REAL
     ++numMakeDirectorySuccess;
     return result;
 }
@@ -933,6 +724,7 @@ Tree::listDirectory(const std::string& symbolicPath,
     ++numListDirectoryAttempted;
     children.clear();
     Result result;
+    result = storage_layer->listDirectory(symbolicPath, children);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -956,21 +748,6 @@ Tree::listDirectory(const std::string& symbolicPath,
     }
     children = targetDir->getChildren();
 #endif // MEM_FSM
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string prefix = symbolicPath;
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-        VERBOSE("iter: %s", iter->key().ToString().c_str());
-        children.emplace_back(iter->key().ToString().substr(1));
-    }
-    delete iter;
-#endif // ROCKSDB_FSM_REAL
     ++numListDirectorySuccess;
     return result;
 }
@@ -979,7 +756,7 @@ Result
 Tree::removeDirectory(const std::string& symbolicPath)
 {
     ++numRemoveDirectoryAttempted;
-    Result result;
+    Result result = storage_layer->removeDirectory(symbolicPath);
 #ifdef FSM_MEM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1016,104 +793,18 @@ Tree::removeDirectory(const std::string& symbolicPath)
         parent->makeDirectory(path.target);
     }
 #endif // FSM_MEM
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string prefix = symbolicPath;
-    std::string key = symbolicPath;
-    if("" == symbolicPath || *symbolicPath.end() != '/')
-    {
-        key += '/';
-    }
-    rdb->Delete(writeOptions, pcf, key);
-#endif
     ++numRemoveDirectoryDone;
     ++numRemoveDirectorySuccess;
     return result;
 }
 Result Tree::removeExpireSetting(const std::string& path)
 {
-    Result s;
-    std::string expireKeyMeta = getMetaKeyOfExpireSetting(path);
-
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-    VERBOSE("now delete expried key from map");
-    auto cacheIt = this->expireCache.find(path);
-    if(this->expireCache.end() != cacheIt)
-    {
-        this->expireCache.erase(cacheIt);
-    }
-
-    auto deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
-    if(!deleteResult.ok())
-    {
-        PANIC("delete expire meta failed");
-    }
-    return s;
+    return storage_layer->removeExpireSetting(path);
 }
     
 Result Tree::cleanExpiredKeys(const std::string& path)
 {
-    Result s;
-    std::string expireKeyMeta = getMetaKeyOfExpireSetting(path);
-    std::string originKeyMeta = path + ":meta";
-    std::string originKeyMetaInfo;
-
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-    rocksdb::Status originKeyMetaGetResult = rdb->Get(readOptions, pcf, originKeyMeta, &originKeyMetaInfo);
-    if(originKeyMetaGetResult.ok())
-    {
-        //this is not a simple kv key, should handle it as complicate data struct
-        //but the basic routine is samesame
-        //no need to check key exists, this is a complicate key, so it must be exists
-
-
-        //check list
-        if(originKeyMetaInfo.substr(0, 1) == "l")
-        {
-            //this is a list
-            auto listPrefix = path + ":l:";
-            auto rdbIter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-            rdbIter->Seek(listPrefix);
-            for(;rdbIter->Valid() && 
-                    rdbIter->key().starts_with(listPrefix);
-                    rdbIter->Next()) {
-                VERBOSE("now delete one key");
-                auto deleteResult = rdb->Delete(writeOptions, pcf, rdbIter->key());
-                if(!deleteResult.ok())
-                {
-                    PANIC("delete element in list fail");
-                }
-            }
-            VERBOSE("now delete meta");
-            auto deleteResult = rdb->Delete(writeOptions, pcf, originKeyMeta);
-            if(!deleteResult.ok())
-            {
-                PANIC("delete meta of list fail");
-            }
-            delete rdbIter;
-        }
-    }
-    else
-    {
-        //this is normal kv, just delete it
-        rdb->Delete(writeOptions, pcf, path);
-    }
-    VERBOSE("now delete exprie");
-    removeExpireSetting(path);
-    return s;
+    return storage_layer->cleanExpiredKeys(path);
 }
 
 Result
@@ -1122,7 +813,19 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
     ++numWriteAttempted;
     Result result;
     result.status = Status::OK;
+    if (symbolicPath == "") {
+        result.status = Status::INVALID_ARGUMENT;
+        return result;
+    }
+
+    if (symbolicPath == "/") {
+        // write to a directory, return TYPE_ERROR
+        result.status = Status::TYPE_ERROR;
+        return result;
+    }
+
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
+    result = storage_layer->write(symbolicPath, contents, requestTime);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1171,55 +874,6 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
     ardb.Call(worker_ctx, redisCommandFrame);
 #endif // ROCKSDB_FSM
 
-#ifdef ROCKSDB_FSM
-//    rocksdb::Status status;
-//    std::vector<std::string> column_families;
-//    rocksdb::Options options;
-//    options.create_if_missing = true;
-//    status = rocksdb::DB::ListColumnFamilies(options, fsmDir, &column_families);
-//    for (auto i : column_families) {
-//        VERBOSE("column %s", i.c_str());
-//    }
-    if (symbolicPath == "") {
-        result.status = Status::INVALID_ARGUMENT;
-        return result;
-    }
-
-    if (symbolicPath == "/") {
-        // write to a directory, return TYPE_ERROR
-        result.status = Status::TYPE_ERROR;
-        return result;
-    }
-
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    rocksdb::Status s;
-    std::string meta;
-    std::string key = symbolicPath;
-    if("" != symbolicPath && *symbolicPath.end() != '/')
-    {
-        key += "/";
-    }
-    s = rdb->Get(rocksdb::ReadOptions(), pcf, key, &meta);
-    if (s.ok() && meta == "dir") {
-        result.status = Status::TYPE_ERROR;
-        result.error = symbolicPath + " is a directory";
-        return result;
-    }
-//    status = rocksdb::DB::ListColumnFamilies(options, fsmDir, &column_families);
-//    for (auto i : column_families) {
-//        VERBOSE("column %s", i.c_str());
-//    }
-
-    s = rdb->Put(writeOptions, pcf, symbolicPath, contents);
-    if (!s.ok()) {
-        PANIC("rocksdb put failed: %s", s.ToString().c_str());
-    }
-#endif // ROCKSDB_FSM_REAL
     ++numWriteSuccess;
     return result;
 }
@@ -1228,7 +882,7 @@ Result
 Tree::sadd(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
-    Result result;
+    Result result = storage_layer->sadd(symbolicPath, contents);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1281,20 +935,6 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
     }
 #endif // ROCKSDB_FSM
 
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string key = symbolicPath + ":meta";
-    rdb->Put(writeOptions, pcf, key, "s");
-
-    key = symbolicPath + ":s:" + contents;
-    rdb->Put(writeOptions, pcf, key, "s");
-#endif // ROCKSDB_FSM_REAL
-
     ++numWriteSuccess;
     return result;
 }
@@ -1303,7 +943,7 @@ Result
 Tree::srem(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
-    Result result;
+    Result result = storage_layer->srem(symbolicPath, contents);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -1336,19 +976,6 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
     ardb.Call(worker_ctx, redisCommandFrame);
 #endif // ROCKSDB_FSM
 
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-//    std::string key = symbolicPath + ":meta";
-//    rdb->Put(writeOptions, key, "set");
-
-    std::string key = symbolicPath + ":s:" + contents;
-    rdb->Delete(writeOptions, pcf, key);
-#endif // ROCKSDB_FSM_REAL
-
     ++numWriteSuccess;
     return result;
 }
@@ -1356,130 +983,7 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
 Result
 Tree::pub(const std::string& symbolicPath, const std::string& contents)
 {
-    ++numWriteAttempted;
-    Result result;
-#ifdef MEM_FSM
-    Path pathTopic2(symbolicPath);
-    if (pathTopic2.result.status != Status::OK)
-        return pathTopic2.result;
-    Directory* parentTopic2;
-    Result result = normalLookup(pathTopic2, &parentTopic2);
-    if (result.status != Status::OK)
-        return result;
-    File* targetFileTopic = parentTopic2->lookupFile(pathTopic2.target);
-    if (targetFileTopic == NULL) {
-        result.status = Status::LOOKUP_ERROR;
-        result.error = format("%s does not exist",
-                              pathTopic2.symbolic.c_str());
-        return result;
-    }
-
-    if (pathTopic2.parents.size() < 3) {
-        result.status = Status::INVALID_ARGUMENT;
-        result.error = format("%s is invalid. /tfs/<appkey>/<topic> is expected",
-        pathTopic2.symbolic.c_str());
-
-        return result;
-    }
-
-    std::string appkey = pathTopic2.parents[2];
-    VERBOSE("appkey %s", appkey.c_str());
-
-    // a fake path just for get the parent path
-    Path pathMsgq("/msgq/" + appkey + "/0");
-    if (pathMsgq.result.status != Status::OK)
-        return pathMsgq.result;
-    Directory* parentMsgq;
-    result = normalLookup(pathMsgq, &parentMsgq);
-    if (result.status != Status::OK)
-        return result;
-
-    // push back the message id to all uids
-    for (auto i : targetFileTopic->sset) {
-        File* targetFileUidMsgq = parentMsgq->makeFile(i);
-        if (targetFileUidMsgq == NULL) {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("%s is not a file",
-                                  ("/msgq/" + appkey + i).c_str());
-            return result;
-        }
-        while (targetFileUidMsgq->list.size() > 10) {
-            targetFileUidMsgq->list.pop_front();
-        }
-        targetFileUidMsgq->list.push_back(contents);
-    }
-#endif // MEM_FSM
-
-#ifdef ARDB_FSM
-    Result result;
-    // read uids from tfs
-    ardb::codec::ArgumentArray cmdArray;
-    cmdArray.push_back("smembers");
-    cmdArray.push_back(symbolicPath);
-    ardb::codec::RedisCommandFrame redisCommandFrame(cmdArray);
-    ardb.Call(worker_ctx, redisCommandFrame);
-    RedisReply &r = worker_ctx.GetReply();
-
-    // extract the appkey
-    size_t start = symbolicPath.find('/', 1);
-    size_t end = symbolicPath.find('/', start+1);
-    std::string appkey = symbolicPath.substr(start+1, end - start - 1);
-
-    // push back the message id to all uids
-    if (r.elements != NULL && !r.elements->empty())
-    {
-        for (uint32 i = 0; i < r.elements->size(); i++)
-        {
-            std::string uid = r.elements->at(i)->GetString();
-            cmdArray.clear();
-            cmdArray.push_back("lpush");
-            cmdArray.push_back("/m/" + appkey + "/" + uid);
-            cmdArray.push_back(contents);
-            ardb::codec::RedisCommandFrame lpushCommandFrame(cmdArray);
-            ardb.Call(worker_ctx, lpushCommandFrame);
-        }
-    }
-#endif // ROCKSDB_FSM
-
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string meta;
-    rocksdb::Status s;
-    uint64_t index = 0;
-    std::string keyMeta = symbolicPath + ":meta";
-
-    auto it = listIndexes.find(symbolicPath);
-    if (it != listIndexes.end()) {
-        index = it->second;
-    } else {
-        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
-        if (s.ok()) {
-            assert(meta.substr(0, 1) == "l");
-            std::string indexStored = meta.substr(1);
-            index = atoll(indexStored.c_str());
-            listIndexes[symbolicPath] = index;
-        }
-    }
-
-
-    char indexStr[8];
-    snprintf(indexStr, 8, "%07lu", index);
-    std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
-    listIndexes[symbolicPath] = index + 1;
-
-    rdb->Put(writeOptions, pcf, keyElement, contents);
-
-    snprintf(indexStr, 8, "%lu", index+1);
-    rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
-#endif
-
-    ++numWriteSuccess;
-    return result;
+    return lpush(symbolicPath, contents, 0);
 }
 
 Result
@@ -1499,42 +1003,10 @@ Tree::expire(const std::string &symbolicPath, const int64_t expireIn, const uint
         VERBOSE("this is a set up request for :%s", symbolicPath.c_str());
         checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
         expireAt = requestTime + expireIn;
-
     }
 
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
+    storage_layer->expire(symbolicPath, expireAt, op, requestTime);
 
-    rocksdb::Status s;
-    std::string keyMeta = getMetaKeyOfExpireSetting(symbolicPath);
-    //but the basic routine is samesame
-    //no need to check key exists, this is a complicate key, so it must be exists
-    if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
-    {
-        std::string content = "";
-        auto getOldExpireResult = rdb->Get(readOptions, pcf, keyMeta, &content);
-        if(getOldExpireResult.ok())
-        {
-            const int64_t oldExpireTime = *((const int64_t*)content.c_str());
-            if(oldExpireTime == expireIn)
-            {
-                cleanExpiredKeys(symbolicPath);
-            }
-            //not same, might be triggered by read request when doing write request 
-        }
-        //nothing found, do nothing, can be duplicate request 
-    }else{
-        rdb->Put(writeOptions, pcf, keyMeta, rocksdb::Slice((const char*)&expireAt, sizeof(int64_t)));
-        expireCache[symbolicPath] = expireAt;
-        //should maintain a list to make sure it can hold in memory
-        //but currently it's ok to stop here, let's make it work first
-    }
-
-#endif
     ++numExpireSuccess;
     return result;
 }
@@ -1545,56 +1017,7 @@ Tree::lpush(const std::string &symbolicPath, const std::string &contents, int64_
     ++numRPushAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string meta;
-    rocksdb::Status s;
-    uint64_t index = 99999;
-    std::string keyMeta = symbolicPath + ":meta";
-
-    auto it = listRevertIndexes.find(symbolicPath);
-    if (it != listRevertIndexes.end()) {
-        index = it->second;
-    } else {
-        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
-        if (s.ok()) {
-            assert(meta.substr(0, 1) == "l");
-            std::string indexStored = meta.substr(1);
-            index = atoll(indexStored.c_str());
-            listRevertIndexes[symbolicPath] = index;
-        }
-    }
-
-    char indexStr[8];
-    snprintf(indexStr, 8, "%07lu", index);
-    std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
-    listRevertIndexes[symbolicPath] = index - 1;
-
-    rdb->Put(writeOptions, pcf, keyElement, contents);
-
-    snprintf(indexStr, 8, "%lu", index+1);
-    rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
-
-    //TODO: need to be abstract as function
-    std::string listLengthStr;
-    int listLength;
-    std::string keyStoreListLength(symbolicPath + ":c");
-    s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
-    if (s.ok()) {
-        listLength = atoi(listLengthStr.c_str());
-        rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(++listLength));
-        VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
-    } else if (s.IsNotFound()) {
-        VERBOSE("list length initialize to 1\n");
-        rdb->Put(writeOptions, pcf, keyStoreListLength, "1");
-    }
-
-#endif
+    result = storage_layer->lpush(symbolicPath, contents, requestTime);
     ++numRPushSuccess;
     return result;
 }
@@ -1604,57 +1027,7 @@ Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_
     ++numRPushAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string meta;
-    rocksdb::Status s;
-    //if nothing is found, should start from 100000
-    uint64_t index = 100000;
-    std::string keyMeta = symbolicPath + ":meta";
-
-    auto it = listIndexes.find(symbolicPath);
-    if (it != listIndexes.end()) {
-        index = it->second;
-    } else {
-        s = rdb->Get(readOptions, pcf, keyMeta, &meta);
-        if (s.ok()) {
-            assert(meta.substr(0, 1) == "l");
-            std::string indexStored = meta.substr(1);
-            index = atoll(indexStored.c_str());
-            listIndexes[symbolicPath] = index;
-        }
-    }
-
-    char indexStr[8];
-    snprintf(indexStr, 8, "%07lu", index);
-    std::string keyElement = symbolicPath + ":l:" + std::string(indexStr);
-    listIndexes[symbolicPath] = index + 1;
-
-    rdb->Put(writeOptions, pcf, keyElement, contents);
-
-    snprintf(indexStr, 8, "%lu", index+1);
-    rdb->Put(writeOptions, pcf, keyMeta, "l" + std::string(indexStr));
-
-    //TODO: need to be abstract as function
-    std::string listLengthStr;
-    int listLength;
-    std::string keyStoreListLength(symbolicPath + ":c");
-    s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
-    if (s.ok()) {
-        listLength = atoi(listLengthStr.c_str());
-        rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(++listLength));
-        VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
-    } else if (s.IsNotFound()) {
-        VERBOSE("list length initialize to 1\n");
-        rdb->Put(writeOptions, pcf, keyStoreListLength, "1");
-    }
-
-#endif
+    result = storage_layer->rpush(symbolicPath, contents, requestTime);
     ++numRPushSuccess;
     return result;
 }
@@ -1664,24 +1037,7 @@ Tree::lpop(const std::string& symbolicPath, std::string& contents, int64_t reque
     ++numLPopAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    result.status = Status::LIST_EMPTY;
-    std::string prefix = symbolicPath + ":l:";
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    iter->Seek(prefix);
-    if (iter->Valid() && iter->key().starts_with(prefix)) {
-        result.status = Status::OK;
-        contents = iter->value().ToString();
-        rdb->Delete(writeOptions, pcf, iter->key());
-    }
-    delete iter;
-#endif
+    result = storage_layer->lpop(symbolicPath, contents, requestTime);
     ++numLPopSuccess;
     return result;
 }
@@ -1691,57 +1047,7 @@ Tree::lrem(const std::string& symbolicPath, const std::string &contents, const i
     ++numLRemAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-#ifdef ROCKSDB_FSM
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    int removed = 0;
-
-    result.status = Status::CONDITION_NOT_MET;
-    std::string prefix = symbolicPath + ":l:";
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    iter->Seek(prefix);
-    //if count < 0, reverse the searching
-    if(count < 0){
-        iter->SeekToLast();
-    }
-    while(iter->Valid() && iter->key().starts_with(prefix) &&
-            (count == 0 || std::abs(count) > removed))
-    {
-
-        if (iter->value() == contents) {
-            rdb->Delete(writeOptions, pcf, iter->key());
-            result.status = Status::OK;
-            removed++;
-        }
-        if(count < 0){
-            iter->Prev();
-        }else{
-            iter->Next();
-        }
-    }
-    delete iter;
-
-    //TODO: need to be abstract as function
-    std::string listLengthStr;
-    int listLength;
-    rocksdb::Status s;
-    std::string keyStoreListLength(symbolicPath + ":c");
-    s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
-    if (s.ok()) {
-        listLength = atoi(listLengthStr.c_str());
-        listLength -= removed;
-        if (listLength <= 0) {
-            rdb->Delete(writeOptions, pcf, keyStoreListLength);
-        } else {
-            rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(listLength));
-        }
-        VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
-    }
-#endif
+    result = storage_layer->lrem(symbolicPath, contents, count, requestTime);
     ++numLRemSuccess;
     return result;
 }
@@ -1751,79 +1057,8 @@ Tree::ltrim(const std::string& symbolicPath, const std::string &contents, int64_
     ++numLTrimAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-#ifdef ROCKSDB_FSM
     std::vector<std::string> args(std::move(split_args(contents)));
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    if (args.size() != 2) {
-        ERROR("Err wrong number of arguments for ltrim command");
-        result.status = Status::INVALID_ARGUMENT;
-        return result;
-    } else {
-        int start = atoi(args[0].c_str());
-        int stop = atoi(args[1].c_str());
-
-        VERBOSE("LTRIM input args: start: %d, stop: %d\n", start, stop);
-
-        std::string listLengthStr;
-        int listLength;
-        rocksdb::Status s;
-        std::string keyStoreListLength(symbolicPath + ":c");
-        s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
-        if (s.ok()) {
-            listLength = atoi(listLengthStr.c_str());
-            VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
-
-            if (start < 0) {
-                start = start + listLength < 0 ? -1 : start + listLength;
-            }
-
-            if (stop < 0) {
-                stop = stop + listLength < 0 ? -1 : stop + listLength;
-            } else if (stop > listLength) {
-                stop = listLength - 1;
-            }
-
-            if (start < stop) {
-                start = start == -1 ? 0 : start;
-            }
-
-            std::string prefix = symbolicPath + ":l:";
-            auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-            int index = 0;
-            for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
-                if (start > stop) {
-                    rdb->Delete(writeOptions, pcf, iter->key()); // delete all the keys
-                    listLength--;
-                } else {                                         // keep [start, stop] of list
-                    if (index < start) {
-                        rdb->Delete(writeOptions, pcf, iter->key());
-                        listLength--;
-                    } else if (index > stop) {
-                        rdb->Delete(writeOptions, pcf, iter->key());
-                        listLength--;
-                    } else {
-                        continue;
-                    }
-                }
-            }
-            if (listLength <= 0) {
-                rdb->Delete(writeOptions, pcf, keyStoreListLength);
-            } else {
-                rdb->Put(writeOptions, pcf, keyStoreListLength, std::to_string(listLength));
-            }
-            delete iter;
-        } else {
-            result.status = Status::LOOKUP_ERROR;
-            return result;
-        }
-    }
-#endif
-    result.status = Status::OK;
+    result = storage_layer->ltrim(symbolicPath, args, requestTime);
     ++numLTrimSuccess;
     return result;
 }
@@ -1886,33 +1121,11 @@ void Tree::appendCleanExpireRequestLog(const std::string &path, const int64_t ex
     }
 }
 
-const std::string Tree::getMetaKeyOfExpireSetting(const std::string& path){
-    return ":meta:e:" + path;
-}
 
 int64_t Tree::getKeyExpireTime(const std::string& path)
 {
-    auto it = expireCache.find(path);
-    if(expireCache.end() != it)
-    {
-        return it->second;
-    }
     //nothing found, goto rdb
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string key = getMetaKeyOfExpireSetting(path);
-    std::string contents = "";
-    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, key, &contents);
-    if(s.ok())
-    {
-        return *((const int64_t*)contents.c_str());
-    }else{
-        return -1;
-    }
+    return storage_layer->getKeyExpireTime(path);
 }
 
 #define IS_REQUEST_FROM_READ (0 == requestTime)
@@ -2045,63 +1258,9 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
     r = ctx.GetReply();
     contents += "\n\n" + r.GetString();
 
-#endif // ROCKSDB_FSM
+#endif // ARDB_FSM
 
-#ifdef ROCKSDB_FSM
-    result.status = Status::LOOKUP_ERROR;
-    result.error = symbolicPath + " does not exist";
-
-    if (symbolicPath == "") {
-        result.status = Status::INVALID_ARGUMENT;
-        return result;
-    }
-
-    if (symbolicPath == "/") {
-        // write to a directory, return TYPE_ERROR
-        result.status = Status::TYPE_ERROR;
-        return result;
-    }
-
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    /*
-    for (auto p : path.parents) {
-        std::cout << "path: " << p << std::endl;
-    }
-     */
-
-    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &contents);
-//    VERBOSE("rocksdb get %s", s.ToString().c_str());
-    if (s.ok()) {
-        result.status = Status::OK;
-    }
-
-    std::string prefix = symbolicPath + ":s:";
-    auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-//        VERBOSE("iter: %s", iter->key().ToString().c_str());
-        contents += iter->key().ToString().substr(prefix.length()) + ",";
-        result.status = Status::OK;
-    }
-    delete iter;
-
-    prefix = symbolicPath + ":l:";
-    iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-    for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
-        contents += iter->key().ToString() + ":" + iter->value().ToString() + ",";
-        result.status = Status::OK;
-    }
-    delete iter;
-#endif // ROCKSDB_FSM_REAL
-
+    result = storage_layer->read(symbolicPath, contents);
     ++numReadSuccess;
     return result;
 }
@@ -2112,7 +1271,6 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::vect
     ++numLRANGEAttempted;
     Result result;
     output.clear() ;
-
     VERBOSE("LRANGE command: path=%s, args=%s\n", symbolicPath.c_str(), args.c_str());
 
     if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
@@ -2121,95 +1279,9 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::vect
         result.error = "Key expired";
         return result;
     }
-#ifdef ROCKSDB_FSM
-    result.status = Status::LOOKUP_ERROR;
-    result.error = symbolicPath + " does not exist";
     std::vector<std::string> splittedArgs(std::move(split_args(args)));
 
-    if (splittedArgs.size() != 2) {
-        ERROR("Err wrong number of arguments for ltrim command");
-        result.status = Status::INVALID_ARGUMENT;
-        return result;
-    } else {
-        //TODO: start and stop can be negative (following redis implementation)
-        int start = atoi(splittedArgs[0].c_str());
-        int stop = atoi(splittedArgs[1].c_str());
-
-        VERBOSE("LRANGE input args: start: %d, stop: %d\n", start, stop);
-
-        if (symbolicPath == "") {
-            result.status = Status::INVALID_ARGUMENT;
-            return result;
-        }
-
-        if (symbolicPath == "/") {
-            // write to a directory, return TYPE_ERROR
-            result.status = Status::TYPE_ERROR;
-            return result;
-        }
-
-        Path path(symbolicPath);
-        if (path.result.status != Status::OK)
-            return path.result;
-
-        ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-        rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-        if (NULL == pcf) {
-            PANIC("Get cf failed");
-        }
-
-        std::string listLengthStr;
-        int listLength;
-        rocksdb::Status s;
-        std::string keyStoreListLength(symbolicPath + ":c");
-        s = rdb->Get(readOptions, pcf, keyStoreListLength, &listLengthStr);
-        if (s.ok()) {
-            listLength = atoi(listLengthStr.c_str());
-            VERBOSE("key %s , current length %d\n", keyStoreListLength.c_str(), listLength);
-
-            if (start < 0) {
-                start = start + listLength < 0 ? -1 : start + listLength;
-            }
-
-            if (stop < 0) {
-                stop = stop + listLength < 0 ? -1 : stop + listLength;
-            } else if (stop > listLength) {
-                stop = listLength - 1;
-            }
-
-            if (start > stop) {
-                result.status = Status::OK;
-            } else {
-                start = start == -1 ? 0 : start;
-                VERBOSE("get list range: [%d,%d]\n", start, stop);
-
-                std::string content;
-                s = rdb->Get(rocksdb::ReadOptions(), pcf, symbolicPath, &content);
-                if (s.ok()) {
-                    result.status = Status::OK;
-                }
-
-                std::string prefix = symbolicPath + ":l:";
-                int index = 0;
-                auto iter = rdb->NewIterator(rocksdb::ReadOptions(), pcf);
-                for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next(), index++) {
-                    if (index >= start && index <= stop) {
-                        std::string currentContent = iter->value().ToString();
-                        output.push_back(currentContent);
-                        result.status = Status::OK;
-                        if (index == stop) {
-                            break;
-                        }
-                    }
-                }
-                delete iter;
-            }
-        } else {
-            result.status = Status::LOOKUP_ERROR;
-            return result;
-        }
-    }
-#endif // ROCKSDB_FSM_REAL
+    result = storage_layer->lrange(symbolicPath, splittedArgs, output);
 
     ++numLRANGESuccess;
     return result;
@@ -2220,6 +1292,7 @@ Tree::head(const std::string& symbolicPath, std::string& contents) const
 {
     ++numReadAttempted;
     contents.clear();
+    Result result = storage_layer->head(symbolicPath, contents);
 #ifdef MEM_FSM
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -2255,8 +1328,6 @@ Tree::head(const std::string& symbolicPath, std::string& contents) const
         return result;
     }
     contents = targetFile->list.front();
-#else
-    Result result;
 #endif // MEM_FSM
     ++numReadSuccess;
     return result;
@@ -2292,33 +1363,7 @@ Tree::removeFile(const std::string& symbolicPath)
         ++numRemoveFileTargetNotFound;
 #endif
 
-#ifdef ROCKSDB_FSM
-    Result result;
-    result.status = Status::OK;
-
-    if (symbolicPath == "") {
-        result.status = Status::INVALID_ARGUMENT;
-        return result;
-    }
-
-    if (symbolicPath == "/") {
-        // write to a directory, return TYPE_ERROR
-        result.status = Status::TYPE_ERROR;
-        return result;
-    }
-
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    rdb->Delete(writeOptions, pcf, symbolicPath);
-#endif
+    Result result = storage_layer->removeFile(symbolicPath);
     ++numRemoveFileSuccess;
     return result;
 }
@@ -2375,42 +1420,8 @@ void Tree::cleanUpExpireKeyEvent(){
         //don't do check on follower, but the timer should keep running
         return;
     }
-    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    long now = timeSpec.tv_sec;
-    static std::string lastCheckKey = ":meta:e:";
-    
-    
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string contents = "";
-    //check 1000 keys in one expire test
-    int counter = 1000;
-
-    auto it = rdb->NewIterator(readOptions, pcf);
-    for(it->Seek(lastCheckKey);counter > 0 && it->Valid() ; counter-- ,it->Next()){
-        if(!it->key().starts_with(":meta:e"))
-        {
-            //loop back to start if reach end
-            lastCheckKey = ":meta:e:";
-            break;
-        }
-        std::string content = it->value().ToString();
-        int64_t expireSecond = *((const int64_t*)content.c_str());
-        if(expireSecond < now)
-        {
-            std::string key = it->key().ToString();
-            //8 = strlen of ":meta:e:"
-            std::string path = key.substr(8);
-            VERBOSE("the path :%s, should be expired at :%ld", path.c_str(), expireSecond);
-            appendCleanExpireRequestLog(path, expireSecond);
-        }
-        lastCheckKey = it->key().ToString();
-    }
-    delete it;
+    //TODO:need to do more to append log
+    storage_layer->cleanUpExpireKeyEvent();
 
 }
 
@@ -2423,10 +1434,11 @@ void Tree::setUpZeroSessionIndex(uint64_t index)
 }
 
 void Tree::startSnapshot(uint64_t lastIncludedIndex) {
+    storage_layer->startSnapshot(lastIncludedIndex);
 #ifdef ARDB_FSM
     int ret = ardb.Snapshot(worker_ctx);
     VERBOSE("ret = %d", ret);
-#endif // ROCKSDB_FSM
+#endif // ARDB_FSM
 #if 0
     ardb::codec::ArgumentArray cmdArray;
     cmdArray.push_back("set");
@@ -2445,19 +1457,6 @@ void Tree::startSnapshot(uint64_t lastIncludedIndex) {
     ardb.Call((ardb::Context&)worker_ctx, redisCommandFrame);
 //    NOTICE(worker_ctx.GetReply().GetString().c_str());
     NOTICE("save backup status: %s", worker_ctx.GetReply().Status().c_str());
-#endif
-#ifdef ROCKSDB_FSM
-    snapshot = (rocksdb::Snapshot*)(rdb->GetSnapshot());
-    if (snapshot == NULL) {
-        PANIC("Get Snapshot failed");
-    }
-
-//    rocksdb::Status status = rocksdb::Checkpoint::Create(rdb, &checkpoint);
-//    if (!status.ok()) {
-//        PANIC("Create checkpoint failed: %s", status.ToString().c_str());
-//    }
-//    std::string checkpoint_dir = serverDir + "/checkpoint";
-//    checkpoint->CreateCheckpoint(checkpoint_dir);
 #endif
 }
 

@@ -181,8 +181,10 @@ set(STORAGE_FILES "Storage/FilesystemUtil.cc"
 )
 
 file(GLOB STORAGE_PROTO_FILES "Storage/*.proto")
-set(TREE_FILES "Tree/ProtoBuf.cc"
+set(TREE_FILES 
+    "Tree/ProtoBuf.cc"
     "Tree/Tree.cc"
+    "Tree/RocksdbTree.cc"
 )
 
 file(GLOB TREE_PROTO_FILES "Tree/*.proto")
