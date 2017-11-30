@@ -14,7 +14,6 @@
 namespace LogCabin {
 namespace Tree {
 using Core::StringUtil::format;
-using namespace Internal; // NOLINT
 
 RocksdbTree::RocksdbTree()
     : checkpoint(NULL)
@@ -708,9 +707,12 @@ RocksdbTree::read(const std::string& symbolicPath, std::string& contents)
         return result;
     }
 
+    /*
+TODO: should check path legal before reading
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
+        */
 
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -762,9 +764,12 @@ RocksdbTree::lrange(const std::string& symbolicPath, const std::vector<std::stri
             return result;
         }
 
+        /*
+TODO:shoudl check path before reading
         Path path(symbolicPath);
         if (path.result.status != Status::OK)
             return path.result;
+            */
 
         ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
         rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -851,9 +856,12 @@ RocksdbTree::removeFile(const std::string& symbolicPath)
         return result;
     }
 
+    /*
+TODO: shoudl check path legal before remove
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
+*/
 
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();

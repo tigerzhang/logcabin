@@ -34,7 +34,6 @@ namespace LogCabin {
 namespace Tree {
 
 using Core::StringUtil::format;
-using namespace Internal; // NOLINT
 
 ////////// enum Status //////////
 
@@ -106,277 +105,10 @@ Result::Result()
 {
 }
 
-namespace Internal {
-
-////////// class File //////////
-
-File::File()
-    : contents()
-, list()
-, sset()
-, iset()
-{
-}
-
-void
-File::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
-{
-    Snapshot::File file;
-    file.set_contents(contents);
-    for (auto i = list.begin(); i != list.end(); i++) {
-        file.mutable_list()->add_items(*i);
-    }
-    for (auto i : sset) {
-        file.mutable_sset()->add_items(i);
-    }
-    for (auto i : iset) {
-        file.mutable_iset()->add_items(i);
-    }
-    stream.writeMessage(file);
-}
-
-void
-File::loadSnapshot(Core::ProtoBuf::InputStream& stream)
-{
-    Snapshot::File node;
-    std::string error = stream.readMessage(node);
-    if (!error.empty()) {
-        PANIC("Couldn't read snapshot: %s", error.c_str());
-    }
-    contents = node.contents();
-    Snapshot::List l = node.list();
-    for (auto i = 0; i < l.items_size(); i++) {
-        list.push_back(l.items(i));
-    }
-    for (auto i = 0; i < node.sset().items_size(); i++) {
-        sset.insert(node.sset().items(i));
-    }
-    for (auto i = 0; i < node.iset().items_size(); i++) {
-        iset.insert(node.iset().items(i));
-    }
-}
-
-uint64_t
-File::size() const {
-    uint64_t size = sizeof(File);
-
-    size += contents.size();
-    for (auto i : list) {
-        size += i.size();
-    }
-    for (auto i : sset) {
-        size += i.size();
-    }
-    size += iset.size() * 8;
-
-    return size;
-}
-
-////////// class Directory //////////
-
-Directory::Directory()
-    : directories()
-    , files()
-{
-}
-
-uint64_t
-Directory::size() const {
-    uint64_t size = sizeof(Directory);
-
-    for (auto it = directories.begin(); it != directories.end(); ++it) {
-        size += it->second.size();
-    }
-    for (auto it = files.begin(); it != files.end(); ++it) {
-        size += it->second.size();
-    }
-    return size;
-}
-
-std::vector<std::string>
-Directory::getChildren() const
-{
-    std::vector<std::string> children;
-    for (auto it = directories.begin(); it != directories.end(); ++it)
-        children.push_back(it->first + "/");
-    for (auto it = files.begin(); it != files.end(); ++it)
-        children.push_back(it->first);
-    return children;
-}
-
-Directory*
-Directory::lookupDirectory(const std::string& name)
-{
-    return const_cast<Directory*>(
-        const_cast<const Directory*>(this)->lookupDirectory(name));
-}
-
-const Directory*
-Directory::lookupDirectory(const std::string& name) const
-{
-    assert(!name.empty());
-    assert(!Core::StringUtil::endsWith(name, "/"));
-    auto it = directories.find(name);
-    if (it == directories.end())
-        return NULL;
-    return &it->second;
-}
-
-
-Directory*
-Directory::makeDirectory(const std::string& name)
-{
-    assert(!name.empty());
-    assert(!Core::StringUtil::endsWith(name, "/"));
-    if (lookupFile(name) != NULL)
-        return NULL;
-    return &directories[name];
-}
-
-void
-Directory::removeDirectory(const std::string& name)
-{
-    assert(!name.empty());
-    assert(!Core::StringUtil::endsWith(name, "/"));
-    directories.erase(name);
-}
-
-File*
-Directory::lookupFile(const std::string& name)
-{
-    return const_cast<File*>(
-        const_cast<const Directory*>(this)->lookupFile(name));
-}
-
-const File*
-Directory::lookupFile(const std::string& name) const
-{
-    assert(!name.empty());
-    assert(!Core::StringUtil::endsWith(name, "/"));
-    auto it = files.find(name);
-    if (it == files.end())
-        return NULL;
-    return &it->second;
-}
-
-File*
-Directory::makeFile(const std::string& name)
-{
-    assert(!name.empty());
-    assert(!Core::StringUtil::endsWith(name, "/"));
-    if (lookupDirectory(name) != NULL)
-        return NULL;
-    return &files[name];
-}
-
-bool
-Directory::removeFile(const std::string& name)
-{
-    assert(!name.empty());
-    assert(!Core::StringUtil::endsWith(name, "/"));
-    return (files.erase(name) > 0);
-}
-
-void
-Directory::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
-{
-    // create protobuf of this dir, listing all children
-    Snapshot::Directory dir;
-    for (auto it = directories.begin(); it != directories.end(); ++it)
-        dir.add_directories(it->first);
-    for (auto it = files.begin(); it != files.end(); ++it)
-        dir.add_files(it->first);
-
-    // write dir into stream
-    stream.writeMessage(dir);
-
-    // dump children in the same order
-    for (auto it = directories.begin(); it != directories.end(); ++it)
-        it->second.dumpSnapshot(stream);
-    for (auto it = files.begin(); it != files.end(); ++it)
-        it->second.dumpSnapshot(stream);
-}
-
-void
-Directory::loadSnapshot(Core::ProtoBuf::InputStream& stream)
-{
-    Snapshot::Directory dir;
-    std::string error = stream.readMessage(dir);
-    if (!error.empty()) {
-        PANIC("Couldn't read snapshot: %s", error.c_str());
-    }
-    for (auto it = dir.directories().begin();
-         it != dir.directories().end();
-         ++it) {
-        directories[*it].loadSnapshot(stream);
-    }
-    for (auto it = dir.files().begin();
-         it != dir.files().end();
-         ++it) {
-        files[*it].loadSnapshot(stream);
-    }
-}
-
-////////// class Path //////////
-
-Path::Path(const std::string& symbolic)
-    : result()
-    , symbolic(symbolic)
-    , parents()
-    , target()
-{
-    if (!Core::StringUtil::startsWith(symbolic, "/")) {
-        result.status = Status::INVALID_ARGUMENT;
-        result.error = format("'%s' is not a valid path",
-                              symbolic.c_str());
-        return;
-    }
-
-    // Add /root prefix (see docs for Tree::superRoot)
-    parents.push_back("root");
-
-    // Split the path into a list of parent components and a target.
-    std::string word;
-    for (auto it = symbolic.begin(); it != symbolic.end(); ++it) {
-        if (*it == '/') {
-            if (!word.empty()) {
-                parents.push_back(word);
-                word.clear();
-            }
-        } else {
-            word += *it;
-        }
-    }
-    if (!word.empty())
-        parents.push_back(word);
-    target = parents.back();
-    parents.pop_back();
-}
-
-std::string
-Path::parentsThrough(std::vector<std::string>::const_iterator end) const
-{
-    auto it = parents.begin();
-    ++it; // skip "root"
-    ++end; // end was inclusive, now exclusive
-    if (it == end)
-        return "/";
-    std::string ret;
-    do {
-        ret += "/" + *it;
-        ++it;
-    } while (it != end);
-    return ret;
-}
-
-} // LogCabin::Tree::Internal
 
 ////////// class Tree //////////
 
 Tree::Tree() :
-#ifdef MEM_FSM
-    superRoot(),
-#endif // MEM_FSM
     numConditionsChecked(0)
     , numConditionsFailed(0)
     , numMakeDirectoryAttempted(0)
@@ -410,11 +142,6 @@ Tree::Tree() :
 #endif // ARSDB_FSM
     , raft(NULL)
 {
-    // Create the root directory so that users don't have to explicitly
-    // call makeDirectory("/").
-#ifdef MEM_FSM
-    superRoot.makeDirectory("root");
-#endif // MEM_FSM
 
 //    ardb::Server server;
 //    server.Start();
@@ -446,69 +173,10 @@ void Tree::Init(std::string& path) {
     {
         PANIC("Failed to init replication service.");
     }
-
 #endif // ROCKSDB_FSM
 }
 
-Result
-Tree::normalLookup(const Path& path, Directory** parent)
-{
-    return normalLookup(path,
-                        const_cast<const Directory**>(parent));
-}
 
-Result
-Tree::normalLookup(const Path& path, const Directory** parent) const
-{
-    *parent = NULL;
-    Result result;
-#ifdef FSM_MEM
-    const Directory* current = &superRoot;
-    for (auto it = path.parents.begin(); it != path.parents.end(); ++it) {
-        const Directory* next = current->lookupDirectory(*it);
-        if (next == NULL) {
-            if (current->lookupFile(*it) == NULL) {
-                result.status = Status::LOOKUP_ERROR;
-                result.error = format("Parent %s of %s does not exist",
-                                      path.parentsThrough(it).c_str(),
-                                      path.symbolic.c_str());
-            } else {
-                result.status = Status::TYPE_ERROR;
-                result.error = format("Parent %s of %s is a file",
-                                      path.parentsThrough(it).c_str(),
-                                      path.symbolic.c_str());
-            }
-            return result;
-        }
-        current = next;
-    }
-    *parent = current;
-#endif // FSM_MEM
-    return result;
-}
-
-Result
-Tree::mkdirLookup(const Path& path, Directory** parent)
-{
-    *parent = NULL;
-    Result result;
-#ifdef FSM_MEM
-    Directory* current = &superRoot;
-    for (auto it = path.parents.begin(); it != path.parents.end(); ++it) {
-        Directory* next = current->makeDirectory(*it);
-        if (next == NULL) {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("Parent %s of %s is a file",
-                                  path.parentsThrough(it).c_str(),
-                                  path.symbolic.c_str());
-            return result;
-        }
-        current = next;
-    }
-    *parent = current;
-#endif
-    return result;
-}
 
 void
 Tree::findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const {
@@ -561,9 +229,6 @@ void
 Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 {
     storage_layer->dumpSnapshot(stream);
-#ifdef FSM_MEM
-    superRoot.dumpSnapshot(stream);
-#endif // FSM_MEM
 
 #ifdef ARDB_FSM
     // findLatestSnapshot(&stream);
@@ -632,10 +297,6 @@ Tree::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
 void
 Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
 {
-#ifdef FSM_MEM
-    superRoot = Directory();
-    superRoot.loadSnapshot(stream);
-#endif // FSM_MEM
 #ifdef ARDB_FSM
     Snapshot::File node;
     std::string error = stream.readMessage(node);
@@ -653,10 +314,9 @@ Tree::loadSnapshot(Core::ProtoBuf::InputStream& stream)
     ardb.Call((ardb::Context&)worker_ctx, redisCommandFrame);
 //    NOTICE(worker_ctx.GetReply().GetString().c_str());
     NOTICE("import backup status: %s", worker_ctx.GetReply().Status().c_str());
-#endif // ROCKSDB_FSM
-#ifdef ROCKSDB_FSM
 
 #endif
+    storage_layer->loadSnapshot(stream);
 }
 
 Result
@@ -697,21 +357,6 @@ Tree::makeDirectory(const std::string& symbolicPath)
 {
     ++numMakeDirectoryAttempted;
     Result result = storage_layer->makeDirectory(symbolicPath);
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    Directory* parent;
-    Result result = mkdirLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    if (parent->makeDirectory(path.target) == NULL) {
-        result.status = Status::TYPE_ERROR;
-        result.error = format("%s already exists but is a file",
-                              path.symbolic.c_str());
-        return result;
-    }
-#endif // MEM_FSM
 
     ++numMakeDirectorySuccess;
     return result;
@@ -725,29 +370,6 @@ Tree::listDirectory(const std::string& symbolicPath,
     children.clear();
     Result result;
     result = storage_layer->listDirectory(symbolicPath, children);
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    const Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    const Directory* targetDir = parent->lookupDirectory(path.target);
-    if (targetDir == NULL) {
-        if (parent->lookupFile(path.target) == NULL) {
-            result.status = Status::LOOKUP_ERROR;
-            result.error = format("%s does not exist",
-                                  path.symbolic.c_str());
-        } else {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("%s is a file",
-                                  path.symbolic.c_str());
-        }
-        return result;
-    }
-    children = targetDir->getChildren();
-#endif // MEM_FSM
     ++numListDirectorySuccess;
     return result;
 }
@@ -757,42 +379,6 @@ Tree::removeDirectory(const std::string& symbolicPath)
 {
     ++numRemoveDirectoryAttempted;
     Result result = storage_layer->removeDirectory(symbolicPath);
-#ifdef FSM_MEM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status == Status::LOOKUP_ERROR) {
-        // no parent, already done
-        ++numRemoveDirectoryParentNotFound;
-        ++numRemoveDirectorySuccess;
-        return Result();
-    }
-    if (result.status != Status::OK)
-        return result;
-    Directory* targetDir = parent->lookupDirectory(path.target);
-    if (targetDir == NULL) {
-        if (parent->lookupFile(path.target)) {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("%s is a file",
-                                  path.symbolic.c_str());
-            return result;
-        } else {
-            // target does not exist, already done
-            ++numRemoveDirectoryTargetNotFound;
-            ++numRemoveDirectorySuccess;
-            return result;
-        }
-    }
-    parent->removeDirectory(path.target);
-    if (parent == &superRoot) { // removeDirectory("/")
-        // If the caller is trying to remove the root directory, we remove the
-        // contents but not the directory itself. The easiest way to do this
-        // is to drop but then recreate the directory.
-        parent->makeDirectory(path.target);
-    }
-#endif // FSM_MEM
     ++numRemoveDirectoryDone;
     ++numRemoveDirectorySuccess;
     return result;
@@ -826,44 +412,6 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
 
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     result = storage_layer->write(symbolicPath, contents, requestTime);
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    File* targetFile = parent->makeFile(path.target);
-    if (targetFile == NULL) {
-        result.status = Status::TYPE_ERROR;
-        result.error = format("%s is a directory",
-                              path.symbolic.c_str());
-        return result;
-    }
-
-    targetFile->contents = contents;
-
-    if (contents.length() > 0) {
-        if (contents.at(0) == '-') {
-            if (contents.length() > 1
-                    && contents.at(1) == '-') {
-                // remove all found items
-                std::string realContent = contents.substr(2);
-                targetFile->list.remove(realContent);
-            } else {
-                // remove an from front
-                std::string realContent = contents.substr(1);
-                auto pos = std::find(targetFile->list.begin(),
-                                     targetFile->list.end(),
-                                     realContent);
-                targetFile->list.erase(pos);
-            }
-        } else {
-            targetFile->list.push_back(contents);
-        }
-    }
-#endif // MEM_FSM
 
 #ifdef ARDB_FSM
     ardb::codec::ArgumentArray cmdArray;
@@ -883,28 +431,6 @@ Tree::sadd(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
     Result result = storage_layer->sadd(symbolicPath, contents);
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    Directory* parent;
-//    Result result = normalLookup(path, &parent);
-    Result result = mkdirLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    File* targetFile = parent->makeFile(path.target);
-    if (targetFile == NULL) {
-        result.status = Status::TYPE_ERROR;
-        result.error = format("%s is a directory",
-                              path.symbolic.c_str());
-        return result;
-    }
-    targetFile->contents = contents;
-
-    if (contents.length() > 0) {
-        targetFile->sset.insert(contents);
-    }
-#endif // MEM_FSM
 
 #ifdef ARDB_FSM
     Result result;
@@ -944,27 +470,6 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
 {
     ++numWriteAttempted;
     Result result = storage_layer->srem(symbolicPath, contents);
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    File* targetFile = parent->lookupFile(path.target);
-    if (targetFile == NULL) {
-        result.status = Status::LOOKUP_ERROR;
-        result.error = format("%s does not exist",
-                              path.symbolic.c_str());
-        return result;
-    }
-    targetFile->contents = contents;
-
-    if (contents.length() > 0) {
-        targetFile->sset.erase(contents);
-    }
-#endif // MEM_FSM
 
 #ifdef ARDB_FSM
     Result result;
@@ -983,6 +488,7 @@ Tree::srem(const std::string& symbolicPath, const std::string& contents)
 Result
 Tree::pub(const std::string& symbolicPath, const std::string& contents)
 {
+    //TODO: should store offline msg here
     return lpush(symbolicPath, contents, 0);
 }
 
@@ -1175,48 +681,6 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
         result.error = "Key expired";
         return result; 
     }
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    const Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    const File* targetFile = parent->lookupFile(path.target);
-    if (targetFile == NULL) {
-        if (parent->lookupDirectory(path.target) != NULL) {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("%s is a directory",
-                                  path.symbolic.c_str());
-        } else {
-            result.status = Status::LOOKUP_ERROR;
-            result.error = format("%s does not exist",
-                                  path.symbolic.c_str());
-        }
-        return result;
-    }
-//    contents = targetFile->contents;
-    for (auto i = targetFile->list.begin(); i != targetFile->list.end(); i++) {
-        if (i == targetFile->list.begin() )
-            contents = *i;
-        else
-            contents += "," + *i;
-    }
-
-    contents += "\n<";
-    for (auto i : targetFile->sset) {
-        contents += i + ",";
-    }
-    // contents.at(contents.length() - 1) = '>';
-    contents += "\n<";
-    for (auto i : targetFile->iset) {
-        std::stringstream ss;
-        ss << i;
-        contents += ss.str() + ",";
-    }
-    // contents.at(contents.length() - 1) = ">";
-#endif // MEM_FSM
 
 #ifdef ARDB_FSM
     ardb::codec::ArgumentArray cmdArray;
@@ -1293,42 +757,6 @@ Tree::head(const std::string& symbolicPath, std::string& contents) const
     ++numReadAttempted;
     contents.clear();
     Result result = storage_layer->head(symbolicPath, contents);
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    const Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status != Status::OK)
-        return result;
-    const File* targetFile = parent->lookupFile(path.target);
-    if (targetFile == NULL) {
-        if (parent->lookupDirectory(path.target) != NULL) {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("%s is a directory",
-                                  path.symbolic.c_str());
-        } else {
-            result.status = Status::LOOKUP_ERROR;
-            result.error = format("%s does not exist",
-                                  path.symbolic.c_str());
-        }
-        return result;
-    }
-//    contents = targetFile->contents;
-//    for (auto i = targetFile->list.begin(); i != targetFile->list.end(); i++) {
-//        if (i == targetFile->list.begin() )
-//            contents = *i;
-//        else
-//            contents += "," + *i;
-//    }
-    if (targetFile->list.empty()) {
-        result.status = Status::LIST_EMPTY;
-        result.error = format("%s list is empty",
-            path.symbolic.c_str());
-        return result;
-    }
-    contents = targetFile->list.front();
-#endif // MEM_FSM
     ++numReadSuccess;
     return result;
 }
@@ -1337,31 +765,6 @@ Result
 Tree::removeFile(const std::string& symbolicPath)
 {
     ++numRemoveFileAttempted;
-#ifdef MEM_FSM
-    Path path(symbolicPath);
-    if (path.result.status != Status::OK)
-        return path.result;
-    Directory* parent;
-    Result result = normalLookup(path, &parent);
-    if (result.status == Status::LOOKUP_ERROR) {
-        // no parent, already done
-        ++numRemoveFileParentNotFound;
-        ++numRemoveFileSuccess;
-        return Result();
-    }
-    if (result.status != Status::OK)
-        return result;
-    if (parent->lookupDirectory(path.target) != NULL) {
-        result.status = Status::TYPE_ERROR;
-        result.error = format("%s is a directory",
-                              path.symbolic.c_str());
-        return result;
-    }
-    if (parent->removeFile(path.target))
-        ++numRemoveFileDone;
-    else
-        ++numRemoveFileTargetNotFound;
-#endif
 
     Result result = storage_layer->removeFile(symbolicPath);
     ++numRemoveFileSuccess;
