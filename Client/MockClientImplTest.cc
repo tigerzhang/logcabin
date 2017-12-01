@@ -79,14 +79,14 @@ class MyCallbacks : public Client::TestingCallbacks {
     bool readOnlyTreeRPC(
         Protocol::Client::ReadOnlyTree_Request& request,
         Protocol::Client::ReadOnlyTree_Response& response) {
-        if (request.has_read()) {
-            if (request.read().path() == "/foo") {
+        if (request.command() == Protocol::Client::READ) {
+            if (request.path() == "/foo") {
                 response.set_status(Protocol::Client::TIMEOUT);
                 response.set_error("timed out");
                 return true;
-            } else if (request.read().path() == "/bar") {
+            } else if (request.path() == "/bar") {
                 response.set_status(Protocol::Client::OK);
-                response.mutable_read()->set_contents(tree->readEx("/foo"));
+                response.set_content(tree->readEx("/foo"));
                 return true;
             }
         }
@@ -96,12 +96,12 @@ class MyCallbacks : public Client::TestingCallbacks {
     bool readWriteTreeRPC(
         Protocol::Client::ReadWriteTree_Request& request,
         Protocol::Client::ReadWriteTree_Response& response) {
-        if (request.has_write()) {
-            if (request.write().path() == "/foo" &&
-                request.write().contents() == "hello") {
-                request.mutable_write()->set_contents("world");
+        if (request.command() == Protocol::Client::WRITE) {
+            if (request.path() == "/foo" &&
+                request.contents() == "hello") {
+                request.set_contents("world");
                 return false;
-            } else if (request.write().path() == "/except") {
+            } else if (request.path() == "/except") {
                 throw Client::TypeException("exception from callback");
             }
         }

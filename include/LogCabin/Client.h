@@ -572,6 +572,9 @@ class Tree {
     std::vector<std::string>
     smembers(const std::string& path);
 
+    std::string
+    scard(const std::string& path);
+
     /**
      * Get the value of a file.
      * \param path

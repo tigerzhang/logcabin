@@ -53,7 +53,7 @@ public:
     lpush(const std::string& path, const std::string& contents,int64_t request_time) = 0;
 
     virtual Result
-    lpop(const std::string& path, std::string& contents, int64_t requestTime) = 0;
+    lpop(const std::string& path, const std::string& contents, int64_t requestTime) = 0;
 
     virtual Result
     lrem(const std::string& path, const std::string& contents, const int32_t count, int64_t requestTime) = 0;
@@ -63,6 +63,10 @@ public:
 
     virtual Result
     expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time) = 0;
+
+    virtual Result
+    scard(const std::string& path,
+                  std::string& content) const = 0;
 
     virtual Result
     read(const std::string& path, std::string& contents) = 0;

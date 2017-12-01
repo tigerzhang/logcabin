@@ -48,7 +48,8 @@ enum class Command {
     LTRIM,
     LRANGE,
     EXPIRE,
-    SMEMBERS
+    SMEMBERS,
+    SCARD
 };
 
 /**
@@ -169,6 +170,8 @@ class OptionParser {
             command = Command::LTRIM;
         } else if (cmdStr == "lrange") {
             command = Command::LRANGE;
+        } else if (cmdStr == "scard") {
+            command = Command::SCARD;
         } else if (cmdStr == "smembers") {
             command = Command::SMEMBERS;
         } else {
@@ -465,6 +468,10 @@ main(int argc, char** argv)
                         content += "," + *it;
                     }
                 }
+                break;
+            }
+            case Command::SCARD: {
+                std::string content = tree.scard(path);
                 break;
             }
             case Command::LRANGE: {

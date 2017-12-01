@@ -618,6 +618,22 @@ Tree::smembers(const std::string& path)
     return output;
 }
 
+
+std::string
+Tree::scard(const std::string& path)
+{
+    std::string output;
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    treeDetails->clientImpl->scard(
+           path,
+           treeDetails->workingDirectory,
+           treeDetails->condition,
+           ClientImpl::absTimeout(treeDetails->timeoutNanos),
+           output
+    );
+    return output;
+}
+
 std::vector<std::string>
 Tree::lrange(const std::string& path, const std::string& contents)
 {

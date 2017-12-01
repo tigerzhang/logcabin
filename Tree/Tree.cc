@@ -363,6 +363,17 @@ Tree::makeDirectory(const std::string& symbolicPath)
 }
 
 Result
+Tree::scard(const std::string& symbolicPath,
+                    std::string& content) const
+{
+    ++numListSmembersAttempted;
+    Result result;
+    result = storage_layer->scard(symbolicPath, content);
+    ++numListSmembersSuccess;
+    return result;
+}
+
+Result
 Tree::smembers(const std::string& symbolicPath,
                     std::vector<std::string>& children) const
 {
@@ -510,7 +521,7 @@ Tree::expire(const std::string &symbolicPath, const int64_t expireIn, const uint
     VERBOSE("expire request recv for:%s", symbolicPath.c_str());
     Result result;
     int64_t expireAt = 0;
-    if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
+    if(Protocol::Client::CLEAN_UP_EXPIRE_KEYS == op)
     {
         //this is a expire clean up request, no need to check expire, it will be removed after all
         VERBOSE("this is a clean up request for :%s", symbolicPath.c_str());
@@ -551,7 +562,7 @@ Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_
 }
 
 Result
-Tree::lpop(const std::string& symbolicPath, std::string& contents, int64_t requestTime) {
+Tree::lpop(const std::string& symbolicPath, const std::string& contents, int64_t requestTime) {
     ++numLPopAttempted;
     Result result;
     checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
@@ -621,9 +632,9 @@ void Tree::appendCleanExpireRequestLog(const std::string &path, const int64_t ex
     //this function should not be retry!
     uint64_t index = this->zeroSessionIndex;
     Protocol::Client::StateMachineCommand::Request command;
-    command.mutable_tree()->mutable_expire()->set_path(path);
-    command.mutable_tree()->mutable_expire()->set_operation(LogCabin::Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS);
-    command.mutable_tree()->mutable_expire()->set_expire_in(expireAt);
+    command.mutable_tree()->set_path(path);
+    command.mutable_tree()->set_command(LogCabin::Protocol::Client::CLEAN_UP_EXPIRE_KEYS);
+    command.mutable_tree()->set_expire_in(expireAt);
     command.mutable_tree()->mutable_exactly_once()->set_client_id(0);
     command.mutable_tree()->mutable_exactly_once()->set_rpc_number(index);
     command.mutable_tree()->mutable_exactly_once()->set_first_outstanding_rpc(index);

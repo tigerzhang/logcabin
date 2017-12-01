@@ -248,13 +248,17 @@ class Tree {
     lpush(const std::string& path, const std::string& contents,int64_t request_time);
 
     Result
-    lpop(const std::string& path, std::string& contents, int64_t requestTime);
+    lpop(const std::string& path, const std::string& contents, int64_t requestTime);
 
     Result
     lrem(const std::string& path, const std::string& contents, const int32_t count, int64_t requestTime);
 
     Result
     ltrim(const std::string& path, const std::string& contents, int64_t requestTime);
+
+    Result
+    scard(const std::string& path,
+                  std::string& content) const;
 
     Result
     smembers(const std::string& path,

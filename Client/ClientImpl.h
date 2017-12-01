@@ -228,6 +228,11 @@ class ClientImpl {
                   TimePoint timeout,
                   std::vector<std::string>& output);
 
+    Result scard(const std::string& path,
+                  const std::string& workingDirectory,
+                  const Condition& condition,
+                  TimePoint timeout,
+                  std::string& output);
     /**
      * Low-level interface to ServerControl service used by
      * Client/ServerControl.cc.

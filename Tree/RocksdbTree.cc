@@ -380,7 +380,7 @@ RocksdbTree::expire(const std::string &symbolicPath, const int64_t expireAt, con
     std::string keyMeta = getMetaKeyOfExpireSetting(symbolicPath);
     //but the basic routine is samesame
     //no need to check key exists, this is a complicate key, so it must be exists
-    if(Protocol::Client::ExpireOpCode::CLEAN_UP_EXPIRE_KEYS == op)
+    if(Protocol::Client::CLEAN_UP_EXPIRE_KEYS == op)
     {
         std::string content = "";
         auto getOldExpireResult = rdb->Get(readOptions, pcf, keyMeta, &content);
@@ -513,7 +513,7 @@ RocksdbTree::rpush(const std::string &symbolicPath, const std::string &contents,
 }
 
 Result
-RocksdbTree::lpop(const std::string& symbolicPath, std::string& contents, int64_t requestTime) {
+RocksdbTree::lpop(const std::string& symbolicPath, const std::string& contents, int64_t requestTime) {
     Result result;
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();

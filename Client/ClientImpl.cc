@@ -377,8 +377,9 @@ ClientImpl::ExactlyOnceRPCHelper::keepAliveThreadMain()
                  {"keepalive",
                  "this is just a no-op to keep the client's session active; "
                  "the condition is expected to fail"});
-            trequest.mutable_write()->set_path("keepalive");
-            trequest.mutable_write()->set_contents("you shouldn't see this!");
+            trequest.set_command(LogCabin::Protocol::Client::WRITE);
+            trequest.set_path("keepalive");
+            trequest.set_contents("you shouldn't see this!");
             Protocol::Client::StateMachineCommand::Response response;
             keepAliveCall = client->leaderRPC->makeCall();
             keepAliveCall->start(OpCode::STATE_MACHINE_COMMAND, request,
@@ -697,7 +698,8 @@ ClientImpl::makeDirectory(const std::string& path,
     *request.mutable_exactly_once() =
         exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_make_directory()->set_path(realPath);
+    request.set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::MAKE_DIRECTORY);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -721,15 +723,16 @@ ClientImpl::listDirectory(const std::string& path,
         return result;
     Protocol::Client::ReadOnlyTree::Request request;
     setCondition(request, condition);
-    request.mutable_list_directory()->set_path(realPath);
+    request.set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::LISD_DIRECTORY);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     children = std::vector<std::string>(
-                    response.list_directory().child().begin(),
-                    response.list_directory().child().end());
+                    response.elem().begin(),
+                    response.elem().end());
     return Result();
 }
 
@@ -747,7 +750,8 @@ ClientImpl::removeDirectory(const std::string& path,
     *request.mutable_exactly_once() =
         exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_remove_directory()->set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::REMOVE_DIRECTORY);
+    request.set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -772,8 +776,9 @@ ClientImpl::write(const std::string& path,
     *request.mutable_exactly_once() =
         exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_write()->set_path(realPath);
-    request.mutable_write()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(LogCabin::Protocol::Client::WRITE);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -798,8 +803,9 @@ ClientImpl::sadd(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_sadd()->set_path(realPath);
-    request.mutable_sadd()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::SADD);
+    request.set_contents(contents);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -824,8 +830,9 @@ ClientImpl::srem(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_srem()->set_path(realPath);
-    request.mutable_srem()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(LogCabin::Protocol::Client::SREM);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -850,8 +857,9 @@ ClientImpl::pub(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_pub()->set_path(realPath);
-    request.mutable_pub()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(LogCabin::Protocol::Client::PUB);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -876,8 +884,10 @@ ClientImpl::expire(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_expire()->set_path(realPath);
-    request.mutable_expire()->set_expire_in(expireIn);
+    request.set_path(realPath);
+    request.set_expire_in(expireIn);
+    request.set_command(LogCabin::Protocol::Client::SET_UP_EXPIRE_IN);
+
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -902,8 +912,9 @@ ClientImpl::lpush(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_lpush()->set_path(realPath);
-    request.mutable_lpush()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(LogCabin::Protocol::Client::LPUSH);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -929,8 +940,10 @@ ClientImpl::rpush(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_rpush()->set_path(realPath);
-    request.mutable_rpush()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(LogCabin::Protocol::Client::RPUSH);
+
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -954,7 +967,8 @@ ClientImpl::lpop(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_lpop()->set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::LPOP);
+    request.set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -979,9 +993,11 @@ ClientImpl::lrem(const std::string& path,
     *request.mutable_exactly_once() =
             exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_lrem()->set_path(realPath);
-    request.mutable_lrem()->set_contents(contents);
-    request.mutable_lrem()->set_count(0);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(LogCabin::Protocol::Client::LREM);
+    request.set_count(0);
+
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -1006,8 +1022,10 @@ ClientImpl::ltrim(const std::string& path,
     *request.mutable_exactly_once() =
     exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_ltrim()->set_path(realPath);
-    request.mutable_ltrim()->set_contents(contents);
+    request.set_path(realPath);
+    request.set_contents(contents);
+    request.set_command(::LogCabin::Protocol::Client::LTRIM);
+
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
@@ -1031,15 +1049,41 @@ ClientImpl::smembers(const std::string& path,
         return result;
     Protocol::Client::ReadOnlyTree::Request request;
     setCondition(request, condition);
-    request.mutable_smembers()->set_path(realPath);
+    request.set_command(::LogCabin::Protocol::Client::SMEMBERS);
+    request.set_path(realPath);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     output = std::vector<std::string>(
-                    response.list_read().elem().begin(),
-                    response.list_read().elem().end());
+                    response.elem().begin(),
+                    response.elem().end());
+    return Result();
+}
+
+Result
+ClientImpl::scard(const std::string& path,
+                   const std::string& workingDirectory,
+                   const Condition& condition,
+                   TimePoint timeout,
+                   std::string& output)
+{
+    output.clear();
+    std::string realPath;
+    Result result = canonicalize(path, workingDirectory, realPath);
+    if (result.status != Status::OK)
+        return result;
+    Protocol::Client::ReadOnlyTree::Request request;
+    setCondition(request, condition);
+    request.set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::SCARD);
+    Protocol::Client::ReadOnlyTree::Response response;
+    treeCall(*leaderRPC,
+             request, response, timeout);
+    if (response.status() != Protocol::Client::Status::OK)
+        return treeError(response);
+    output = response.content();
     return Result();
 }
 
@@ -1058,16 +1102,17 @@ ClientImpl::lrange(const std::string& path,
         return result;
     Protocol::Client::ReadOnlyTree::Request request;
     setCondition(request, condition);
-    request.mutable_lrange()->set_path(realPath);
-    request.mutable_lrange()->set_args(args);
+    request.set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::LRANGE);
+    request.set_args(args);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
     output = std::vector<std::string>(
-                    response.list_read().elem().begin(),
-                    response.list_read().elem().end());
+                    response.elem().begin(),
+                    response.elem().end());
     return Result();
 }
 
@@ -1085,13 +1130,14 @@ ClientImpl::read(const std::string& path,
         return result;
     Protocol::Client::ReadOnlyTree::Request request;
     setCondition(request, condition);
-    request.mutable_read()->set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::READ);
+    request.set_path(realPath);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
-    contents = response.read().contents();
+    contents = response.content();
     return Result();
 }
 
@@ -1107,13 +1153,14 @@ ClientImpl::head(const std::string& path,
     if (result.status != Status::OK)
         return result;
     Protocol::Client::ReadOnlyTree::Request request;
-    request.mutable_head()->set_path(realPath);
+    request.set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::HEAD);
     Protocol::Client::ReadOnlyTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
     if (response.status() != Protocol::Client::Status::OK)
         return treeError(response);
-    contents = response.read().contents();
+    contents = response.content();
     return Result();
 }
 
@@ -1131,7 +1178,8 @@ ClientImpl::removeFile(const std::string& path,
     *request.mutable_exactly_once() =
         exactlyOnceRPCHelper.getRPCInfo(timeout);
     setCondition(request, condition);
-    request.mutable_remove_file()->set_path(realPath);
+    request.set_command(LogCabin::Protocol::Client::REMOVE_FILE);
+    request.set_path(realPath);
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);

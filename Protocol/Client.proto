@@ -33,6 +33,34 @@ enum OpCode {
     GET_SERVER_INFO = 7;
 };
 
+//read opcode
+enum ReadOpCode {
+    READ = 0;
+    LISD_DIRECTORY = 1;
+    HEAD = 2;
+    LRANGE = 3;
+    SMEMBERS = 4;
+    SCARD = 5;
+}
+
+enum WriteOpCode {
+    WRITE = 0;
+    MAKE_DIRECTORY = 1;
+    REMOVE_DIRECTORY = 2;
+    REMOVE_FILE = 3;
+    SET_UP_EXPIRE_IN = 4;
+    LREM = 5;
+    SADD = 6;
+    SREM = 7;
+    PUB = 8;
+    LPUSH = 9;
+    LPOP = 10;
+    RPUSH = 12;
+    CLEAN_UP_EXPIRE_KEYS = 13;
+    LTRIM = 14;
+
+}
+
 /**
  * The type of "service-specific error" replies that this service returns.
  */
@@ -286,51 +314,20 @@ message TreeCondition {
  */
 message ReadOnlyTree {
     message Request {
-        optional TreeCondition condition = 11;
+        optional TreeCondition condition = 1;
         // The following are mutually exclusive.
-        message ListDirectory {
-            required string path = 1;
-        }
-        optional ListDirectory list_directory = 2;
-        message Read {
-            required string path = 1;
-        }
-        optional Read read = 5;
-        message Head {
-            required string path = 1;
-        }
-        optional Head head = 6;
-        message ReadWithArgs {
-            required string path = 1;
-            required string args = 2;
-        }
-        optional ReadWithArgs lrange = 7;
-        optional Read smembers = 8;
+        required ReadOpCode command = 2;
+        required string path = 3;
+        optional string args = 4;
     }
     message Response {
         optional Status status = 1;
         // The following are mutually exclusive.
         optional string error = 2;
-        message ListDirectory {
-            repeated string child = 1;
-        }
-        optional ListDirectory list_directory = 3;
-        message Read {
-            required bytes contents = 1;
-        }
-        optional Read read = 4;
-        message ListRead{
-            repeated string elem = 1;
-        }
-        optional ListRead list_read = 5;
+        optional string content = 3;
+        repeated string elem = 4;
     }
 }
-
-enum ExpireOpCode{
-     SET_UP_EXPIRE_IN = 1;
-     CLEAN_UP_EXPIRE_KEYS = 2;
-}
-
 
 /**
  * Read-write Tree state machine command: modifies the hierarchical key-value
@@ -338,62 +335,28 @@ enum ExpireOpCode{
  */
 message ReadWriteTree {
     message Request {
-        /// See ExactlyOnceRPCInfo.
-        required ExactlyOnceRPCInfo exactly_once = 10;
-        optional TreeCondition condition = 11;
         // The following are mutually exclusive.
-        message MakeDirectory {
-            required string path = 1;
-        }
-        optional MakeDirectory make_directory = 1;
-        message RemoveDirectory {
-            required string path = 1;
-        }
-        optional RemoveDirectory remove_directory = 3;
-        message Write {
-            required string path = 1;
-            required bytes contents = 2;
-        }
-        optional Write write = 4;
-        message RemoveFile {
-            required string path = 1;
-        }
+        required WriteOpCode command = 1;
+        required string path = 2;
+        optional bytes contents = 3;
+        optional int64 expire_in = 4;
 
-        optional RemoveFile remove_file = 6;
-        message Expire{
-            required string path = 1;
-            //unit: second
-            required int64 expire_in = 2;
-            //don't set this if you are called from client side,
-            //defalut will be SET_UP_EXPIRE_IN. 
-            //Set to CLEAN_UP_EXPIRE_KEYS to clean the expire, but the expire should be same as the database's data
-            optional ExpireOpCode operation = 3;
-        }
+        // for lrem
+        // if count = 0, remove all elements equals to contents in path
+        // if count > 0, remove count elements from head to tail
+        // if count < 0, remove -count elements from tail to head
 
-        message Lrem{
-            required string path = 1;
-            required string contents = 2;
-            // if count = 0, remove all elements equals to contents in path
-            // if count > 0, remove count elements from head to tail
-            // if count < 0, remove -count elements from tail to head
-            required int64 count = 3;
-        }
-
-        optional Write sadd = 7;
-        optional Write srem = 8;
-        optional Write pub = 9;
-        optional Write lpush = 12;
-        optional RemoveDirectory lpop = 13;
-        optional Lrem lrem = 14;
-        optional Write ltrim = 15;
-        optional Expire expire = 16;
-        optional int64 request_time = 17;
-        optional Write rpush = 18;
+        optional int64 request_time = 5;
+        /// See ExactlyOnceRPCInfo.
+        optional TreeCondition condition = 6;
+        required ExactlyOnceRPCInfo exactly_once = 7;
+        optional int32 count = 8;
     }
     message Response {
         optional Status status = 1;
         // The following are mutually exclusive.
         optional string error = 2;
+        optional string content = 3;
     }
 }
 

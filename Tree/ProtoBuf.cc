@@ -36,35 +36,68 @@ readOnlyTreeRPC(Tree& tree,
     }
     if (result.status != Status::OK) {
         // condition does not match, skip
-    } else if (request.has_list_directory()) {
-        std::vector<std::string> children;
-        result = tree.listDirectory(request.list_directory().path(),
-                                    children);
-        for (auto it = children.begin(); it != children.end(); ++it)
-            response.mutable_list_directory()->add_child(*it);
-    } else if (request.has_read()) {
-        std::string contents;
-        result = tree.read(
-                request.read().path(),
-                contents);
-        response.mutable_read()->set_contents(contents);
-    } else if (request.has_head()) {
-        std::string contents;
-        result = tree.head(request.head().path(), contents);
-        response.mutable_read()->set_contents(contents);
-    } else if (request.has_lrange()) {
-        std::vector<std::string> output;
-        result = tree.lrange(request.lrange().path(), request.lrange().args(), output);
-        for (auto it = output.begin(); it != output.end(); ++it)
-            response.mutable_list_read()->add_elem(*it);
-    } else if (request.has_smembers()) {
-        std::vector<std::string> output;
-        result = tree.smembers(request.smembers().path(), output);
-        for (auto it = output.begin(); it != output.end(); ++it)
-            response.mutable_list_read()->add_elem(*it);
-    } else {
-        PANIC("Unexpected request: %s",
-              Core::ProtoBuf::dumpString(request).c_str());
+    } 
+    else
+    {
+        switch(request.command())
+        {
+            case Protocol::Client::LISD_DIRECTORY:
+                {
+
+                    std::vector<std::string> children;
+                    result = tree.listDirectory(request.path(),
+                            children);
+                    for (auto it = children.begin(); it != children.end(); ++it)
+                        response.add_elem(*it);
+                    break;
+                }
+            case Protocol::Client::READ:
+                {
+
+                    std::string contents;
+                    result = tree.read(
+                            request.path(),
+                            contents);
+                    response.set_content(contents);
+                    break;
+                }
+            case Protocol::Client::HEAD:
+                {
+
+                    std::string contents;
+                    result = tree.head(request.path(), contents);
+                    response.set_content(contents);
+                    break;
+                }
+            case Protocol::Client::LRANGE:
+                {
+                    std::vector<std::string> output;
+                    result = tree.lrange(request.path(), request.args(), output);
+                    for (auto it = output.begin(); it != output.end(); ++it)
+                        response.add_elem(*it);
+                    break;
+                }
+            case Protocol::Client::SMEMBERS:
+                {
+                    std::vector<std::string> output;
+                    result = tree.smembers(request.path(), output);
+                    for (auto it = output.begin(); it != output.end(); ++it)
+                        response.add_elem(*it);
+                    break;
+                }
+            case Protocol::Client::SCARD:
+                {
+                    std::string output;
+                    result = tree.scard(request.path(), output);
+                    response.set_content(output);
+                    break;
+                }
+            default:
+                PANIC("Unexpected request: %s",
+                        Core::ProtoBuf::dumpString(request).c_str());
+                break;
+        }
+
     }
     response.set_status(static_cast<PC::Status>(result.status));
     if (result.status != Status::OK)
@@ -84,66 +117,125 @@ readWriteTreeRPC(Tree& tree,
     }
     if (result.status != Status::OK) {
         // condition does not match, skip
-    } else if (request.has_rpush()) {
-        result = tree.rpush(request.rpush().path(),
-                            request.rpush().contents(),
-                            request.request_time());
-    } else if (request.has_lpush()) {
-        result = tree.lpush(request.lpush().path(),
-                            request.lpush().contents(),
-                            request.request_time());
-    } else if (request.has_lpop()) {
-        result = tree.lpop(request.lpop().path(), contents, request.request_time());
-        response.set_error(contents);
-    } else if (request.has_lrem()) {
-        result = tree.lrem(request.lrem().path(),
-                           request.lrem().contents(),
-                           request.lrem().count(),
-                           request.request_time());
-    } else if (request.has_make_directory()) {
-        result = tree.makeDirectory(request.make_directory().path());
-    } else if (request.has_remove_directory()) {
-        result = tree.removeDirectory(request.remove_directory().path());
-    } else if (request.has_write()) {
-        result = tree.write(request.write().path(),
-                            request.write().contents(),
-                            request.request_time());
-    } else if (request.has_remove_file()) {
-        result = tree.removeFile(request.remove_file().path());
-    } else if (request.has_sadd()) {
-        result = tree.sadd(request.sadd().path(),
-                           request.sadd().contents());
-    } else if (request.has_srem()) {
-        result = tree.srem(request.srem().path(),
-                           request.srem().contents());
-    } else if (request.has_pub()) {
-        result = tree.pub(request.pub().path(),
-                          request.pub().contents());
-    } else if (request.has_ltrim()) {
-        result = tree.ltrim(request.ltrim().path(),
-                          request.ltrim().contents(), request.request_time());
-    } else if (request.has_expire()) {
-        //don't panic, it's a pure expire request
-    } else {
-        PANIC("Unexpected request: %s",
-              Core::ProtoBuf::dumpString(request).c_str());
-    }
-    //handle expire after other writtings
-    if (request.has_expire()) {
-        uint32_t operation = 0;
-        if(request.expire().has_operation())
+    } 
+    else
+    {
+        switch(request.command())
         {
-            operation = request.expire().operation();
-        }else
-        {
-            operation = Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN;
+            case Protocol::Client::RPUSH:
+                {
+                    result = tree.rpush(request.path(),
+                            request.contents(),
+                            request.request_time());
+                    break;
+                }
+            case Protocol::Client::LPUSH:
+                {
+                    result = tree.lpush(request.path(),
+                            request.contents(),
+                            request.request_time());
+                    break;
+                }
+            case Protocol::Client::LPOP:
+                {
+                    result = tree.lpop(request.path(),
+                            request.contents(),
+                            request.request_time());
+                    response.set_error(contents);
+                    break;
+                }
+            case Protocol::Client::LREM:
+                {
+                    result = tree.lrem(request.path(),
+                            request.contents(),
+                            request.count(),
+                            request.request_time());
+                    break;
+                }
+            case Protocol::Client::MAKE_DIRECTORY:
+                {
+                    result = tree.makeDirectory(request.path());
+                    break;
+                }
+            case Protocol::Client::REMOVE_DIRECTORY:
+                {
+                    result = tree.removeDirectory(request.path());
+                    break;
+                }
+            case Protocol::Client::WRITE:
+                {
+                    result = tree.write(request.path(),
+                            request.contents(),
+                            request.request_time());
+                    break;
+                }
+            case Protocol::Client::REMOVE_FILE:
+                {
+                    result = tree.removeFile(request.path());
+                    break;
+                }
+            case Protocol::Client::SADD:
+                {
+                    result = tree.sadd(request.path(),
+                            request.contents());
+                    break;
+                }
+            case Protocol::Client::SREM:
+                {
+                    result = tree.srem(request.path(),
+                            request.contents());
+                    break;
+                }
+            case Protocol::Client::PUB:
+                {
+                    result = tree.pub(request.path(),
+                            request.contents());
+                    break;
+                }
+            case Protocol::Client::LTRIM:
+                {
+                    result = tree.ltrim(request.path(),
+                            request.contents(), request.request_time());
+                    break;
+                }
+            case Protocol::Client::SET_UP_EXPIRE_IN:
+            case Protocol::Client::CLEAN_UP_EXPIRE_KEYS:
+                break;
+            default:
+                PANIC("Unexpected request: %s",
+                        Core::ProtoBuf::dumpString(request).c_str());
+                break;
+
+                
         }
-        result = tree.expire(request.expire().path(),
-                request.expire().expire_in(),
-                operation,
-                request.request_time()
-                );
+        switch(request.command())
+        {
+            case Protocol::Client::SET_UP_EXPIRE_IN:
+            case Protocol::Client::CLEAN_UP_EXPIRE_KEYS:
+                {
+
+                    result = tree.expire(request.path(),
+                            request.expire_in(),
+                            request.command(),
+                            request.request_time()
+                            );
+                    break;
+                }
+            default:
+                if(request.has_expire_in() && request.expire_in() != 0)
+                {
+                    //command didn't set up to do expire, but the expire in is set
+                    //treat it as set up expire
+                    result = tree.expire(request.path(),
+                            request.expire_in(),
+                            Protocol::Client::SET_UP_EXPIRE_IN,
+                            request.request_time()
+                            );
+                }
+                break;
+        }
     }
+
     response.set_status(static_cast<PC::Status>(result.status));
     if (result.status != Status::OK)
         response.set_error(result.error);

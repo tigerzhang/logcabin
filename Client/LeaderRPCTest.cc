@@ -66,9 +66,9 @@ class ClientLeaderRPCTest : public ::testing::Test {
                                       sessionManager));
 
 
-        request.mutable_tree()->mutable_read()->set_path("foo");
+        request.mutable_tree()->set_path("foo");
         expResponse.mutable_tree()->set_status(Protocol::Client::Status::OK);
-        expResponse.mutable_tree()->mutable_read()->set_contents("bar");
+        expResponse.mutable_tree()->set_content("bar");
     }
     ~ClientLeaderRPCTest()
     {

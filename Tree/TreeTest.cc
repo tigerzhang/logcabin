@@ -542,7 +542,7 @@ TEST_F(TreeTreeTest, expire)
 
     Result result;
 
-    EXPECT_OK(tree.expire("/a", 2, Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN,now));
+    EXPECT_OK(tree.expire("/a", 2, Protocol::Client::SET_UP_EXPIRE_IN,now));
     
     sleep(1);
     //should not expire in 1 second
@@ -559,7 +559,7 @@ TEST_F(TreeTreeTest, expire)
     //set to expire in 1 second
     timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
     now = timeSpec.tv_sec;
-    EXPECT_OK(tree.expire("/a", 1, Protocol::Client::ExpireOpCode::SET_UP_EXPIRE_IN, now));
+    EXPECT_OK(tree.expire("/a", 1, Protocol::Client::SET_UP_EXPIRE_IN, now));
 
     sleep(2);
 

@@ -394,7 +394,7 @@ MemTree::lpush(const std::string& path, const std::string& contents,int64_t requ
     return result;
 }
 Result
-MemTree::lpop(const std::string& path, std::string& contents, int64_t requestTime)
+MemTree::lpop(const std::string& path, const std::string& contents, int64_t requestTime)
 {
     Result result;
     return result;
@@ -458,6 +458,37 @@ Result
 MemTree::removeExpireSetting(const std::string& path)
 {
     Result result;
+    return result;
+}
+
+Result
+MemTree::scard(const std::string& symbolicPath,
+                    std::string& content) const
+{
+    Result result;
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+    {
+        content = "0";
+        return result;
+    }
+    const Directory* parent;
+    result = normalLookup(path, &parent);
+    if (result.status != Status::OK)
+    {
+        content = "0";
+        result.status = Status::OK;
+        return result;
+    }
+
+    const File* targetFile = parent->lookupFile(path.target);
+    if (targetFile == NULL) {
+        content = "0";
+        result.status = Status::OK;
+        return result;
+    }
+
+    content = std::to_string(targetFile->sset.size());
     return result;
 }
 

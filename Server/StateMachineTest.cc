@@ -93,7 +93,7 @@ TEST_F(ServerStateMachineTest, query_tree)
 {
     StateMachine::Query::Request request;
     StateMachine::Query::Response response;
-    auto& read = *request.mutable_tree()->mutable_read();
+    auto& read = *request.mutable_tree();
     read.set_path("/foo");
     EXPECT_TRUE(stateMachine->query(request, response));
     EXPECT_EQ(Protocol::Client::Status::LOOKUP_ERROR,

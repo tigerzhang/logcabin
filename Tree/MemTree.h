@@ -283,7 +283,11 @@ public:
     lpush(const std::string& path, const std::string& contents,int64_t request_time) ;
 
     virtual Result
-    lpop(const std::string& path, std::string& contents, int64_t requestTime) ;
+    lpop(const std::string& path, const std::string& contents, int64_t requestTime) ;
+
+    virtual Result
+    scard(const std::string& path,
+                  std::string& content) const;
 
     virtual Result
     lrem(const std::string& path, const std::string& contents, const int32_t count, int64_t requestTime) ;
