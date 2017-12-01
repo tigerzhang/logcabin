@@ -185,6 +185,7 @@ set(TREE_FILES
     "Tree/ProtoBuf.cc"
     "Tree/Tree.cc"
     "Tree/RocksdbTree.cc"
+    "Tree/MemTree.cc"
 )
 
 file(GLOB TREE_PROTO_FILES "Tree/*.proto")

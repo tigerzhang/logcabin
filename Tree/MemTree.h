@@ -27,7 +27,6 @@ class File {
     std::string contents;
 
     std::list<std::string> list;
-
     std::set<std::string> sset;
     std::set<uint64_t> iset;
 
@@ -252,7 +251,7 @@ private:
      */
     Internal::Directory superRoot;
 public:
-    MemTree();
+    MemTree():superRoot(){};
     virtual void Init(const std::string& path) ;
     virtual void dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const ;
     virtual void loadSnapshot(Core::ProtoBuf::InputStream& stream) ;
@@ -261,6 +260,9 @@ public:
 
     virtual Result
     listDirectory(const std::string& symbolicPath, std::vector<std::string>& children) const ;
+
+    virtual Result
+    smembers(const std::string& symbolicPath, std::vector<std::string>& children) const ;
 
     virtual Result
     removeDirectory(const std::string& symbolicPath) ;

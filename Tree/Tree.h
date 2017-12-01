@@ -256,6 +256,9 @@ class Tree {
     Result
     ltrim(const std::string& path, const std::string& contents, int64_t requestTime);
 
+    Result
+    smembers(const std::string& path,
+                  std::vector<std::string>& children) const;
     /**
      * Do expire, if the op is CLEAN_UP_EXPIRE_KEYS, this api will remove the expire setting on the path, otherwise it will set up an expire timer on the key, the key should be expired in 'expire' seconds, 'expire' must be convertable to int
      */
@@ -391,6 +394,8 @@ private:
     uint64_t numMakeDirectorySuccess;
     mutable uint64_t numListDirectoryAttempted;
     mutable uint64_t numListDirectorySuccess;
+    mutable uint64_t numListSmembersAttempted;
+    mutable uint64_t numListSmembersSuccess;
     uint64_t numRemoveDirectoryAttempted;
     uint64_t numRemoveDirectoryParentNotFound;
     uint64_t numRemoveDirectoryTargetNotFound;

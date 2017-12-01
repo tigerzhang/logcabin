@@ -8,6 +8,10 @@ namespace LogCabin {
 namespace Tree {
 namespace {
 
+#define EXPECT_OK(c) do { \
+    Result result = (c); \
+    EXPECT_EQ(Status::OK, result.status) << result.error; \
+} while (0)
 using namespace Internal; // NOLINT
 TEST(TreeFileTest, dumpSnapshot)
 {

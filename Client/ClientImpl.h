@@ -214,6 +214,12 @@ class ClientImpl {
                  const Condition& condition,
                  TimePoint timeout);
 
+    Result smembers(const std::string& path,
+                  const std::string& workingDirectory,
+                  const Condition& condition,
+                  TimePoint timeout,
+                  std::vector<std::string>& output);
+
 
     Result lrange(const std::string& path,
                   const std::string& workingDirectory,

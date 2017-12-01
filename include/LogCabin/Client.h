@@ -569,6 +569,9 @@ class Tree {
     std::vector<std::string>
     lrange(const std::string& path, const std::string& contents);
 
+    std::vector<std::string>
+    smembers(const std::string& path);
+
     /**
      * Get the value of a file.
      * \param path

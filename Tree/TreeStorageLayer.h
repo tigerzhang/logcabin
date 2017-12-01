@@ -32,6 +32,9 @@ public:
     listDirectory(const std::string& symbolicPath, std::vector<std::string>& children) const = 0;
 
     virtual Result
+    smembers(const std::string& symbolicPath, std::vector<std::string>& children) const = 0;
+
+    virtual Result
     removeDirectory(const std::string& symbolicPath) = 0;
 
     virtual Result

@@ -604,6 +604,21 @@ Tree::readEx(const std::string& path) const
 }
 
 std::vector<std::string>
+Tree::smembers(const std::string& path)
+{
+    std::vector<std::string> output;
+    std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
+    treeDetails->clientImpl->smembers(
+           path,
+           treeDetails->workingDirectory,
+           treeDetails->condition,
+           ClientImpl::absTimeout(treeDetails->timeoutNanos),
+           output
+    );
+    return output;
+}
+
+std::vector<std::string>
 Tree::lrange(const std::string& path, const std::string& contents)
 {
     std::vector<std::string> output;

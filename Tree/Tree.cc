@@ -20,7 +20,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include "Tree/RocksdbTree.h"
+#include "Tree/MemTree.h"
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
 #include "Core/Debug.h"
@@ -151,7 +151,7 @@ Tree::Tree() :
     worker_ctx.ClearFlags();
 #endif // ARDB_FSM
 
-    storage_layer = std::make_shared<RocksdbTree>();
+    storage_layer = std::make_shared<MemTree>();
 }
 
 Tree::~Tree() {
@@ -359,6 +359,18 @@ Tree::makeDirectory(const std::string& symbolicPath)
     Result result = storage_layer->makeDirectory(symbolicPath);
 
     ++numMakeDirectorySuccess;
+    return result;
+}
+
+Result
+Tree::smembers(const std::string& symbolicPath,
+                    std::vector<std::string>& children) const
+{
+    ++numListSmembersAttempted;
+    children.clear();
+    Result result;
+    result = storage_layer->smembers(symbolicPath, children);
+    ++numListSmembersSuccess;
     return result;
 }
 

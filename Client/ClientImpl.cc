@@ -1018,6 +1018,32 @@ ClientImpl::ltrim(const std::string& path,
 }
 
 Result
+ClientImpl::smembers(const std::string& path,
+                   const std::string& workingDirectory,
+                   const Condition& condition,
+                   TimePoint timeout,
+                   std::vector<std::string>& output)
+{
+    output.clear();
+    std::string realPath;
+    Result result = canonicalize(path, workingDirectory, realPath);
+    if (result.status != Status::OK)
+        return result;
+    Protocol::Client::ReadOnlyTree::Request request;
+    setCondition(request, condition);
+    request.mutable_smembers()->set_path(realPath);
+    Protocol::Client::ReadOnlyTree::Response response;
+    treeCall(*leaderRPC,
+             request, response, timeout);
+    if (response.status() != Protocol::Client::Status::OK)
+        return treeError(response);
+    output = std::vector<std::string>(
+                    response.list_read().elem().begin(),
+                    response.list_read().elem().end());
+    return Result();
+}
+
+Result
 ClientImpl::lrange(const std::string& path,
                    const std::string& workingDirectory,
                    const Condition& condition,

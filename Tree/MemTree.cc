@@ -274,8 +274,16 @@ Path::parentsThrough(std::vector<std::string>::const_iterator end) const
 
 } // LogCabin::Tree::Internal
 
+/*
 MemTree::MemTree()
     :superRoot()
+{
+    superRoot.makeDirectory("root");
+}
+*/
+
+void 
+MemTree::Init(const std::string& path)
 {
     // Create the root directory,
     // so that users don't have 
@@ -369,6 +377,119 @@ MemTree::makeDirectory(const std::string& symbolicPath)
         result.error = format("%s already exists but is a file",
                               path.symbolic.c_str());
     }
+    return result;
+}
+
+Result
+MemTree::rpush(const std::string& path, const std::string& contents,int64_t request_time)
+{
+    Result result;
+    return result;
+}
+
+Result
+MemTree::lpush(const std::string& path, const std::string& contents,int64_t request_time)
+{
+    Result result;
+    return result;
+}
+Result
+MemTree::lpop(const std::string& path, std::string& contents, int64_t requestTime)
+{
+    Result result;
+    return result;
+}
+Result
+MemTree::lrem(const std::string& path, const std::string& contents, const int32_t count, int64_t requestTime)
+{
+    Result result;
+    return result;
+}
+
+Result
+MemTree::ltrim(const std::string& path, const std::vector<std::string>& contents, int64_t requestTime)
+{
+    Result result;
+    return result;
+}
+Result
+MemTree::expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time)
+{
+    Result result;
+    return result;
+}
+
+Result
+MemTree::remove(const std::string& path)
+{
+    Result result;
+    return result;
+}
+Result
+MemTree::lrange(const std::string& path, const std::vector<std::string>& args, std::vector<std::string>& output)
+{
+    Result result;
+    return result;
+}
+
+int64_t
+MemTree::getKeyExpireTime(const std::string& path)
+{
+    return -1;
+}
+
+Result MemTree::cleanExpiredKeys(const std::string& path)
+{
+    Result result;
+    return result;
+}
+
+void
+MemTree::cleanUpExpireKeyEvent()
+{
+}
+
+void
+MemTree::startSnapshot(uint64_t lastIncludedIndex)
+{
+}
+
+Result
+MemTree::removeExpireSetting(const std::string& path)
+{
+    Result result;
+    return result;
+}
+
+Result
+MemTree::smembers(const std::string& symbolicPath,
+                    std::vector<std::string>& children) const
+{
+    Path path(symbolicPath);
+    if (path.result.status != Status::OK)
+        return path.result;
+    const Directory* parent;
+    Result result = normalLookup(path, &parent);
+    if (result.status != Status::OK)
+        return result;
+    const File* targetFile = parent->lookupFile(path.target);
+    if (targetFile == NULL) {
+        if (parent->lookupDirectory(path.target) != NULL) {
+            result.status = Status::TYPE_ERROR;
+            result.error = format("%s is a directory",
+                                  path.symbolic.c_str());
+        } else {
+            result.status = Status::LOOKUP_ERROR;
+            result.error = format("%s does not exist",
+                                  path.symbolic.c_str());
+        }
+        return result;
+    }
+
+    for (auto i : targetFile->sset) {
+        children.push_back(i);
+    }
+
     return result;
 }
 
@@ -505,7 +626,7 @@ MemTree::sadd(const std::string& symbolicPath, const std::string& contents)
 }
 
 Result
-Tree::srem(const std::string& symbolicPath, const std::string& contents)
+MemTree::srem(const std::string& symbolicPath, const std::string& contents)
 {
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
@@ -552,7 +673,9 @@ MemTree::read(const std::string& symbolicPath, std::string& contents)
         }
         return result;
     }
-//    contents = targetFile->contents;
+
+    contents = targetFile->contents;
+    /*
     for (auto i = targetFile->list.begin(); i != targetFile->list.end(); i++) {
         if (i == targetFile->list.begin() )
             contents = *i;
@@ -572,6 +695,7 @@ MemTree::read(const std::string& symbolicPath, std::string& contents)
         contents += ss.str() + ",";
     }
     // contents.at(contents.length() - 1) = ">";
+    */
     return result;
 }
 

@@ -57,6 +57,11 @@ readOnlyTreeRPC(Tree& tree,
         result = tree.lrange(request.lrange().path(), request.lrange().args(), output);
         for (auto it = output.begin(); it != output.end(); ++it)
             response.mutable_list_read()->add_elem(*it);
+    } else if (request.has_smembers()) {
+        std::vector<std::string> output;
+        result = tree.smembers(request.smembers().path(), output);
+        for (auto it = output.begin(); it != output.end(); ++it)
+            response.mutable_list_read()->add_elem(*it);
     } else {
         PANIC("Unexpected request: %s",
               Core::ProtoBuf::dumpString(request).c_str());

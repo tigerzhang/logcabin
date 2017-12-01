@@ -305,6 +305,7 @@ message ReadOnlyTree {
             required string args = 2;
         }
         optional ReadWithArgs lrange = 7;
+        optional Read smembers = 8;
     }
     message Response {
         optional Status status = 1;
