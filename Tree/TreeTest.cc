@@ -521,7 +521,7 @@ TEST_F(TreeTreeTest, read)
 
     Result result;
     result = tree.read("/b", contents);
-    EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
+    EXPECT_EQ(Status::TYPE_ERROR, result.status);
 //    EXPECT_EQ(Status::TYPE_ERROR, result.status);
 //    EXPECT_EQ("/b is a directory", result.error);
 
