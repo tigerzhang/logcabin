@@ -67,6 +67,7 @@ class ClientLeaderRPCTest : public ::testing::Test {
 
 
         request.mutable_tree()->set_path("foo");
+        request.mutable_tree()->set_command(Protocol::Client::READ);
         expResponse.mutable_tree()->set_status(Protocol::Client::Status::OK);
         expResponse.mutable_tree()->set_content("bar");
     }
@@ -130,6 +131,8 @@ TEST_F(ClientLeaderRPCTest, Call_start_timeout) {
     LeaderRPC::Call call(*leaderRPC);
     ConnectInProgress c;
     RPC::ClientSession::connectFn = std::ref(c);
+    request.mutable_tree()->set_command(Protocol::Client::READ);
+    request.mutable_tree()->set_path("foo");
     call.start(OpCode::STATE_MACHINE_QUERY, request, TimePoint::min());
     EXPECT_EQ("Closed session: Failed to create session to leader: "
               "timeout expired",

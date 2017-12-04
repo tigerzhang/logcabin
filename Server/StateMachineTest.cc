@@ -95,6 +95,7 @@ TEST_F(ServerStateMachineTest, query_tree)
     StateMachine::Query::Response response;
     auto& read = *request.mutable_tree();
     read.set_path("/foo");
+    read.set_command(Protocol::Client::READ);
     EXPECT_TRUE(stateMachine->query(request, response));
     EXPECT_EQ(Protocol::Client::Status::LOOKUP_ERROR,
               response.tree().status());
@@ -397,8 +398,8 @@ TEST_F(ServerStateMachineTest, apply_tree)
             "  first_outstanding_rpc: 2 "
             "  rpc_number: 3 "
             " } "
-            " make_directory { "
-            "  path: '/a' "
+            " command: 1, "
+            " path: '/a', "
             " } "
             "}");
     entry.command = serialize(command);
