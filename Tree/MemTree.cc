@@ -608,31 +608,13 @@ MemTree::write(const std::string& symbolicPath, const std::string& contents, int
 
     targetFile->contents = contents;
 
-    if (contents.length() > 0) {
-        if (contents.at(0) == '-') {
-            if (contents.length() > 1
-                    && contents.at(1) == '-') {
-                // remove all found items
-                std::string realContent = contents.substr(2);
-                targetFile->list.remove(realContent);
-            } else {
-                // remove an from front
-                std::string realContent = contents.substr(1);
-                auto pos = std::find(targetFile->list.begin(),
-                                     targetFile->list.end(),
-                                     realContent);
-                targetFile->list.erase(pos);
-            }
-        } else {
-            targetFile->list.push_back(contents);
-        }
-    }
     return result;
 }
 
 Result
 MemTree::sadd(const std::string& symbolicPath, const std::string& contents)
 {
+    VERBOSE("now call sadd");
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -648,7 +630,6 @@ MemTree::sadd(const std::string& symbolicPath, const std::string& contents)
                               path.symbolic.c_str());
         return result;
     }
-    targetFile->contents = contents;
 
     if (contents.length() > 0) {
         targetFile->sset.insert(contents);
@@ -673,7 +654,6 @@ MemTree::srem(const std::string& symbolicPath, const std::string& contents)
                               path.symbolic.c_str());
         return result;
     }
-    targetFile->contents = contents;
 
     if (contents.length() > 0) {
         targetFile->sset.erase(contents);
