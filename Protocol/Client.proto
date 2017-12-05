@@ -341,16 +341,20 @@ message ReadWriteTree {
         optional bytes contents = 3;
         optional int64 expire_in = 4;
 
-        // for lrem
-        // if count = 0, remove all elements equals to contents in path
-        // if count > 0, remove count elements from head to tail
-        // if count < 0, remove -count elements from tail to head
-
         optional int64 request_time = 5;
         /// See ExactlyOnceRPCInfo.
         optional TreeCondition condition = 6;
         required ExactlyOnceRPCInfo exactly_once = 7;
+
+        // for lrem
+        // if count = 0, remove all elements equals to contents in path
+        // if count > 0, remove count elements from head to tail
+        // if count < 0, remove -count elements from tail to head
         optional int32 count = 8;
+
+        //args used for multiple value write request like lpush,
+        // or sadd ,srem
+        repeated string args = 9;
     }
     message Response {
         optional Status status = 1;

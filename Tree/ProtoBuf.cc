@@ -176,8 +176,14 @@ readWriteTreeRPC(Tree& tree,
                 }
             case Protocol::Client::SADD:
                 {
+                    std::vector<std::string> args;
+                    args.resize((int)(request.args().size()));
+                    for(unsigned long i = 0 ; i < request.args().size(); i++)
+                    {
+                        args[i] = request.args(i);
+                    }
                     result = tree.sadd(request.path(),
-                            request.contents());
+                            args);
                     break;
                 }
             case Protocol::Client::SREM:

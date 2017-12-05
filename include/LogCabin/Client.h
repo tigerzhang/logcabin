@@ -524,9 +524,9 @@ class Tree {
     writeEx(const std::string& path, const std::string& contents);
 
     Result
-    sadd(const std::string& path, const std::string& contents);
+    sadd(const std::string& path, const std::vector<std::string>& contents);
     void
-    saddEx(const std::string& path, const std::string& contents);
+    saddEx(const std::string& path, const std::vector<std::string>& contents);
 
 
     Result

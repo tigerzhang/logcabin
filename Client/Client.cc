@@ -434,7 +434,7 @@ Tree::writeEx(const std::string& path, const std::string& contents)
 }
 
 Result
-Tree::sadd(const std::string& path, const std::string& contents)
+Tree::sadd(const std::string& path, const std::vector<std::string>& contents)
 {
     std::shared_ptr<const TreeDetails> treeDetails = getTreeDetails();
     return treeDetails->clientImpl->sadd(
@@ -446,7 +446,7 @@ Tree::sadd(const std::string& path, const std::string& contents)
 }
 
 void
-Tree::saddEx(const std::string& path, const std::string& contents)
+Tree::saddEx(const std::string& path, const std::vector<std::string>& contents)
 {
     throwException(sadd(path, contents), treeDetails->timeoutNanos);
 }

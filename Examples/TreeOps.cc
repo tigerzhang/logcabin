@@ -424,7 +424,7 @@ main(int argc, char** argv)
                 tree.removeFileEx(path);
                 break;
             case Command::SADD:
-                tree.saddEx(path, readStdin());
+                tree.saddEx(path, {readStdin()});
                 break;
             case Command::SREM:
                 tree.sremEx(path, readStdin());

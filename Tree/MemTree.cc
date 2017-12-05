@@ -614,7 +614,7 @@ MemTree::write(const std::string& symbolicPath, const std::string& contents, int
 }
 
 Result
-MemTree::sadd(const std::string& inputSymbolicPath, const std::string& contents)
+MemTree::sadd(const std::string& inputSymbolicPath, const std::vector<std::string>& contents)
 {
     std::string symbolicPath = inputSymbolicPath;
     if(!Core::StringUtil::endsWith(symbolicPath, "/"))
@@ -629,7 +629,10 @@ MemTree::sadd(const std::string& inputSymbolicPath, const std::string& contents)
     Result result = mkdirLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
-    parent->sset.insert(contents);
+    for(auto content_elem : contents)
+    {
+        parent->sset.insert(content_elem);
+    }
 
     return result;
 }

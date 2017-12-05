@@ -275,7 +275,7 @@ public:
     write(const std::string& path, const std::string& contents,int64_t requestTime) ;
     
     virtual Result
-    sadd(const std::string& path, const std::string& contents) ;
+    sadd(const std::string& path, const std::vector<std::string>& contents) ;
 
     virtual Result
     srem(const std::string& path, const std::string& contents) ;

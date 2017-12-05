@@ -140,7 +140,7 @@ class ClientImpl {
     /// See Tree::sadd.
     Result sadd(const std::string& path,
                  const std::string& workingDirectory,
-                 const std::string& contents,
+                 const std::vector<std::string>& contents,
                  const Condition& condition,
                  TimePoint timeout);
 

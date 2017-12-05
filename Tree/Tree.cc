@@ -450,7 +450,7 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
 }
 
 Result
-Tree::sadd(const std::string& symbolicPath, const std::string& contents)
+Tree::sadd(const std::string& symbolicPath, const std::vector<std::string>& contents)
 {
     ++numWriteAttempted;
     Result result = storage_layer->sadd(symbolicPath, contents);

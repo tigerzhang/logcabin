@@ -334,7 +334,7 @@ RocksdbTree::write(const std::string& symbolicPath, const std::string& contents,
 }
 
 Result
-RocksdbTree::sadd(const std::string& symbolicPath, const std::string& contents){
+RocksdbTree::sadd(const std::string& symbolicPath, const std::vector<std::string>& contentsList){
     Result result;
     ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
     rocksdb::ColumnFamilyHandle* pcf = cfp.get();
@@ -344,9 +344,11 @@ RocksdbTree::sadd(const std::string& symbolicPath, const std::string& contents){
 
     std::string key = symbolicPath + ":meta";
     rdb->Put(writeOptions, pcf, key, "s");
-
-    key = symbolicPath + ":s:" + contents;
-    rdb->Put(writeOptions, pcf, key, "s");
+    for(auto contents : contentsList)
+    {
+        key = symbolicPath + ":s:" + contents;
+        rdb->Put(writeOptions, pcf, key, "s");
+    }
     return result;
 }
 

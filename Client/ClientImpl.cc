@@ -791,7 +791,7 @@ ClientImpl::write(const std::string& path,
 Result
 ClientImpl::sadd(const std::string& path,
                   const std::string& workingDirectory,
-                  const std::string& contents,
+                  const std::vector<std::string>& contents,
                   const Condition& condition,
                   TimePoint timeout)
 {
@@ -805,7 +805,10 @@ ClientImpl::sadd(const std::string& path,
     setCondition(request, condition);
     request.set_path(realPath);
     request.set_command(LogCabin::Protocol::Client::SADD);
-    request.set_contents(contents);
+    for(auto i : contents)
+    {
+        request.add_args(i);
+    }
     Protocol::Client::ReadWriteTree::Response response;
     treeCall(*leaderRPC,
              request, response, timeout);
