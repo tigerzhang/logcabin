@@ -497,9 +497,15 @@ MemTree::scard(const std::string& symbolicPath,
 }
 
 Result
-MemTree::smembers(const std::string& symbolicPath,
+MemTree::smembers(const std::string& inputSymbolicPath,
                     std::vector<std::string>& children) const
 {
+    std::string symbolicPath = inputSymbolicPath;
+    if(Core::StringUtil::endsWith(symbolicPath, "/"))
+    {
+        symbolicPath += '/';
+    }
+
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -507,22 +513,14 @@ MemTree::smembers(const std::string& symbolicPath,
     Result result = normalLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
-    const File* targetFile = parent->lookupFile(path.target);
-    if (targetFile == NULL) {
-        if (parent->lookupDirectory(path.target) != NULL) {
-            result.status = Status::TYPE_ERROR;
-            result.error = format("%s is a directory",
-                                  path.symbolic.c_str());
-        } else {
-            result.status = Status::LOOKUP_ERROR;
-            result.error = format("%s does not exist",
-                                  path.symbolic.c_str());
-        }
-        return result;
-    }
 
-    for (auto i : targetFile->sset) {
-        children.push_back(i);
+    children.resize(parent->sset.size());
+
+
+    long index = 0;
+    for (auto i : parent->sset) {
+        children[index] = i;
+        index++;
     }
 
     return result;
@@ -616,9 +614,13 @@ MemTree::write(const std::string& symbolicPath, const std::string& contents, int
 }
 
 Result
-MemTree::sadd(const std::string& symbolicPath, const std::string& contents)
+MemTree::sadd(const std::string& inputSymbolicPath, const std::string& contents)
 {
-    VERBOSE("now call sadd");
+    std::string symbolicPath = inputSymbolicPath;
+    if(!Core::StringUtil::endsWith(symbolicPath, "/"))
+    {
+        symbolicPath += '/';
+    }
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -627,23 +629,19 @@ MemTree::sadd(const std::string& symbolicPath, const std::string& contents)
     Result result = mkdirLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
-    File* targetFile = parent->makeFile(path.target);
-    if (targetFile == NULL) {
-        result.status = Status::TYPE_ERROR;
-        result.error = format("%s is a directory",
-                              path.symbolic.c_str());
-        return result;
-    }
+    parent->sset.insert(contents);
 
-    if (contents.length() > 0) {
-        targetFile->sset.insert(contents);
-    }
     return result;
 }
 
 Result
-MemTree::srem(const std::string& symbolicPath, const std::string& contents)
+MemTree::srem(const std::string& inputSymbolicPath, const std::string& contents)
 {
+    std::string symbolicPath = inputSymbolicPath;
+    if(!Core::StringUtil::endsWith(symbolicPath, "/"))
+    {
+        symbolicPath += '/';
+    }
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -651,16 +649,8 @@ MemTree::srem(const std::string& symbolicPath, const std::string& contents)
     Result result = normalLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
-    File* targetFile = parent->lookupFile(path.target);
-    if (targetFile == NULL) {
-        result.status = Status::LOOKUP_ERROR;
-        result.error = format("%s does not exist",
-                              path.symbolic.c_str());
-        return result;
-    }
-
     if (contents.length() > 0) {
-        targetFile->sset.erase(contents);
+        parent->sset.erase(contents);
     }
     return result;
 }

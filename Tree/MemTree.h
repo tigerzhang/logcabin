@@ -129,6 +129,9 @@ class Directory {
      */
     void loadSnapshot(Core::ProtoBuf::InputStream& stream);
 
+    /*add set so a director can be a set as well*/
+
+    std::set<std::string> sset;
   private:
     /**
      * Map from names of child directories (without trailing slashes) to the
@@ -140,9 +143,6 @@ class Directory {
      */
     std::map<std::string, File> files;
 
-    /*add set so a director can be a set as well*/
-
-    std::set<std::string> sset;
 };
 
 /**
