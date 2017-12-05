@@ -190,6 +190,10 @@ Directory::dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const
     for (auto it = files.begin(); it != files.end(); ++it)
         dir.add_files(it->first);
 
+    for (auto i : sset) {
+        dir.mutable_sset()->add_items(i);
+    }
+
     // write dir into stream
     stream.writeMessage(dir);
 

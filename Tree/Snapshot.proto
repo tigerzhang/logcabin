@@ -22,6 +22,7 @@ message Directory {
     repeated string directories = 1;
     /// The names of child files.
     repeated string files = 2;
+    optional List sset = 3;
 }
 
 /**

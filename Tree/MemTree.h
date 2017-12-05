@@ -139,6 +139,10 @@ class Directory {
      * Map from names of child files to the File objects.
      */
     std::map<std::string, File> files;
+
+    /*add set so a director can be a set as well*/
+
+    std::set<std::string> sset;
 };
 
 /**
