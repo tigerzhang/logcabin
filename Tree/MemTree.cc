@@ -497,15 +497,9 @@ MemTree::scard(const std::string& symbolicPath,
 }
 
 Result
-MemTree::smembers(const std::string& inputSymbolicPath,
+MemTree::smembers(const std::string& symbolicPath,
                     std::vector<std::string>& children) const
 {
-    std::string symbolicPath = inputSymbolicPath;
-    if(Core::StringUtil::endsWith(symbolicPath, "/"))
-    {
-        symbolicPath += '/';
-    }
-
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -513,12 +507,25 @@ MemTree::smembers(const std::string& inputSymbolicPath,
     Result result = normalLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
+    const Directory* targetDir = parent->lookupDirectory(path.target);
+    if (targetDir == NULL) {
+        if (parent->lookupFile(path.target) == NULL) {
+            result.status = Status::LOOKUP_ERROR;
+            result.error = format("%s does not exist",
+                                  path.symbolic.c_str());
+        } else {
+            result.status = Status::TYPE_ERROR;
+            result.error = format("%s is a file",
+                                  path.symbolic.c_str());
+        }
+        return result;
+    }
 
-    children.resize(parent->sset.size());
+    children.resize(targetDir->sset.size());
 
 
     long index = 0;
-    for (auto i : parent->sset) {
+    for (auto i : targetDir->sset) {
         children[index] = i;
         index++;
     }
@@ -614,13 +621,8 @@ MemTree::write(const std::string& symbolicPath, const std::string& contents, int
 }
 
 Result
-MemTree::sadd(const std::string& inputSymbolicPath, const std::vector<std::string>& contents)
+MemTree::sadd(const std::string& symbolicPath, const std::vector<std::string>& contents)
 {
-    std::string symbolicPath = inputSymbolicPath;
-    if(!Core::StringUtil::endsWith(symbolicPath, "/"))
-    {
-        symbolicPath += '/';
-    }
     Path path(symbolicPath);
     if (path.result.status != Status::OK)
         return path.result;
@@ -629,9 +631,10 @@ MemTree::sadd(const std::string& inputSymbolicPath, const std::vector<std::strin
     Result result = mkdirLookup(path, &parent);
     if (result.status != Status::OK)
         return result;
+    auto newDir = parent->makeDirectory(path.target);
     for(auto content_elem : contents)
     {
-        parent->sset.insert(content_elem);
+        newDir->sset.insert(content_elem);
     }
 
     return result;

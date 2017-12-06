@@ -483,6 +483,21 @@ TEST_F(TreeTreeTest, rpush)
     EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
 }
 
+TEST_F(TreeTreeTest, sadd)
+{
+    EXPECT_EQ(Status::INVALID_ARGUMENT, tree.sadd("", {""}).status);
+//    EXPECT_EQ(Status::TYPE_ERROR, tree.sadd("/", {""}).status);
+    EXPECT_OK(tree.sadd("/sadd_test/a", {"foo_a"}));
+    EXPECT_OK(tree.sadd("/sadd_test/b", {"foo_b"}));
+    std::vector<std::string> contents;
+    EXPECT_OK(tree.smembers("/sadd_test/a", contents));
+    EXPECT_EQ(1, contents.size());
+    EXPECT_EQ("foo_a", contents[ 0 ]);
+    EXPECT_OK(tree.smembers("/sadd_test/b", contents));
+    EXPECT_EQ(1, contents.size());
+    EXPECT_EQ("foo_b", contents[ 0 ]);
+}
+
 TEST_F(TreeTreeTest, write)
 {
     auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
