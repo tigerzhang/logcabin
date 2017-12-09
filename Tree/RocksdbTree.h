@@ -73,6 +73,13 @@ namespace Tree {
 
         virtual void startSnapshot(uint64_t lastIncludedIndex);
 
+        virtual Result
+            smembers(const std::string& symbolicPath, std::vector<std::string>& children) const;
+
+        virtual Result
+            scard(const std::string& path,
+                    std::string& content) const;
+
         virtual void cleanUpExpireKeyEvent() ;
         private:
 

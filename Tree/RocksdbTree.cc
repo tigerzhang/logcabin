@@ -26,6 +26,19 @@ RocksdbTree::RocksdbTree()
 
 RocksdbTree::~RocksdbTree(){}
 
+Result
+RocksdbTree::smembers(const std::string& symbolicPath, std::vector<std::string>& children) const
+{
+    return Result();
+}
+
+Result
+RocksdbTree::scard(const std::string& path,
+        std::string& content) const
+{
+    return Result();
+}
+
 void RocksdbTree::Init(const std::string& path)
 {
     serverDir = path;

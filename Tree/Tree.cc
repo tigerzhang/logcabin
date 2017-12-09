@@ -20,7 +20,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include "Tree/MemTree.h"
+#include "Tree/RocksdbTree.h"
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
 #include "Core/Debug.h"
@@ -151,7 +151,7 @@ Tree::Tree() :
     worker_ctx.ClearFlags();
 #endif // ARDB_FSM
 
-    storage_layer = std::make_shared<MemTree>();
+    storage_layer = std::make_shared<RocksdbTree>();
 }
 
 Tree::~Tree() {
