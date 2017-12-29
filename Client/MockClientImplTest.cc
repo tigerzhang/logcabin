@@ -18,6 +18,7 @@
 #include <deque>
 #include <queue>
 
+#include "Client/MockClientImpl.h"
 #include "Client/ClientImpl.h"
 #include "Client/LeaderRPCMock.h"
 #include "Core/Debug.h"
@@ -27,6 +28,17 @@
 #include "include/LogCabin/Client.h"
 
 namespace LogCabin {
+    namespace Client {
+
+        Cluster::Cluster(std::shared_ptr<TestingCallbacks> testingCallbacks,
+                const std::map<std::string, std::string>& options)
+            : clientImpl(std::make_shared<MockClientImpl>(
+                        testingCallbacks ? testingCallbacks
+                        : std::make_shared<TestingCallbacks>()))
+            {
+                clientImpl->init("-MOCK-");
+            }
+    }
 namespace {
 
 class ClientMockClientImplTest : public ::testing::Test {
@@ -111,6 +123,7 @@ class MyCallbacks : public Client::TestingCallbacks {
     // heap-allocated for deferred construction
     std::unique_ptr<Client::Tree> tree;
 };
+
 
 TEST_F(ClientMockClientImplTest, callbacks) {
     auto callbacks = std::make_shared<MyCallbacks>();

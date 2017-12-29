@@ -96,7 +96,6 @@ StateMachine::StateMachine(std::shared_ptr<RaftConsensus> consensus,
     tree.setRaft(consensus.get());
 #endif
     tree.Init(consensus->storageLayout.serverDir.path);
-    this->globals.eventLoop.setTreeForExpireTimer(&tree);
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
                                                 MAX_SUPPORTED_VERSION);

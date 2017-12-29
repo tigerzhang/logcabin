@@ -337,7 +337,7 @@ include_directories(${LIBEVENT_REL_DIR}/include
 
 add_library(logcabin STATIC
         ${CLIENT_FILES}
-        ${TREE_FILES}
+        #${TREE_FILES}
         ${SERVER_FILES}
         ${ProtocolProtoSources}
         ${STORAGE_FILES}
@@ -360,13 +360,13 @@ add_executable(Reconfigure ${CMAKE_SOURCE_DIR}/Examples/Reconfigure.cc)
 target_link_libraries(Reconfigure logcabin ${LIBS})
 add_executable(ReconfigureTest ${CMAKE_SOURCE_DIR}/Examples/ReconfigureTest.cc)
 target_link_libraries(ReconfigureTest logcabin ${LIBS})
-add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc)
+add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc ${TREE_FILES})
 target_link_libraries(SmokeTest logcabin ${LIBS})
-add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc)
+add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${TREE_FIELS})
 target_link_libraries(TreeOps logcabin ${LIBS})
-add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
+add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc ${TREE_FILES})
 target_link_libraries(ServerControl logcabin ${LIBS})
-add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources})
+add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources} ${TREE_FILES})
 target_link_libraries(Tool logcabin ${LIBS} pthread)
 
 file(GLOB CLIENT_TEST_FILES "Client/*Test.cc" "Client/*Mock.cc")
@@ -394,7 +394,7 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${SERVER_TEST_FILES}
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
-add_executable(Test ${TEST_SOURCE_FILES})
+add_executable(Test ${TEST_SOURCE_FILES} ${TREE_FILES})
 target_link_libraries(Test logcabin ${LIBS})
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)
