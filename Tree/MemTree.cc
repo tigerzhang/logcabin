@@ -416,12 +416,6 @@ MemTree::ltrim(const std::string& path, const std::vector<std::string>& contents
     Result result;
     return result;
 }
-Result
-MemTree::expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time)
-{
-    Result result;
-    return result;
-}
 
 Result
 MemTree::remove(const std::string& path)
@@ -436,33 +430,9 @@ MemTree::lrange(const std::string& path, const std::vector<std::string>& args, s
     return result;
 }
 
-int64_t
-MemTree::getKeyExpireTime(const std::string& path)
-{
-    return -1;
-}
-
-Result MemTree::cleanExpiredKeys(const std::string& path)
-{
-    Result result;
-    return result;
-}
-
-void
-MemTree::cleanUpExpireKeyEvent()
-{
-}
-
 void
 MemTree::startSnapshot(uint64_t lastIncludedIndex)
 {
-}
-
-Result
-MemTree::removeExpireSetting(const std::string& path)
-{
-    Result result;
-    return result;
 }
 
 Result

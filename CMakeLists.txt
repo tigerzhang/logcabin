@@ -14,6 +14,8 @@ set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
 set(GTEST_LIB_NAME libgtest.a)
 set(GTEST_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
 set(GTEST_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
+SET(CMAKE_EXE_LINKER_FLAGS -pg)
+
 
 # Vars for building rocksdb
 set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
@@ -302,13 +304,15 @@ if (APPLE)
     message(STATUS "Can not find library in non-Linux machine")
 elseif (UNIX)
     find_library(LZ4_LIB_STATIC NAMES liblz4.a)
-    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a")
+    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" HINTS ${PROTOBUF_REL_DIR}/lib)
+#    SET(PROTOBUF_LIB_STATIC ${PROTOBUF_REL_DIR}/lib/libprotobuf.a)
     find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
     find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
     find_library(BZ2_LIB_STATIC NAMES libbz2.a)
     find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
     file(GLOB EVENT_LIB_STATIC ${LIBEVENT_REL_DIR}/lib)
     find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
+    message(STATUS "protobuf path:" ${PROTOBUF_LIB_STATIC})
     set(LIBS ${SUBMODULE_LIBS}
             ${LZ4_LIB_STATIC}
             ${PROTOBUF_LIB_STATIC}

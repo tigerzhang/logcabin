@@ -273,42 +273,6 @@ RocksdbTree::removeDirectory(const std::string& symbolicPath)
     return result;
 }
 
-const std::string getMetaKeyOfExpireSetting(const std::string& path){
-    return ":meta:e:" + path;
-}
-
-Result RocksdbTree::removeExpireSetting(const std::string& path)
-{
-    Result s;
-    auto cacheIt = this->expireCache.find(path);
-    if(this->expireCache.end() != cacheIt)
-    {
-        this->expireCache.erase(cacheIt);
-    }
-    std::string expireKeyMeta = getMetaKeyOfExpireSetting(path);
-
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-    VERBOSE("now delete expried key from map");
-
-    auto deleteResult = rdb->Delete(writeOptions, pcf, expireKeyMeta);
-    if(!deleteResult.ok())
-    {
-        PANIC("delete expire meta failed");
-    }
-    return s;
-}
-
-Result RocksdbTree::cleanExpiredKeys(const std::string& path){
-    Result s;
-    remove(path);
-    removeExpireSetting(path);
-    return s;
-}
-
 Result
 RocksdbTree::remove(const std::string& path){
     //TODO: fix it to really do remove
@@ -381,44 +345,6 @@ RocksdbTree::srem(const std::string& symbolicPath, const std::string& contents){
     rdb->Delete(writeOptions, pcf, key);
     return result;
 }
-
-Result
-RocksdbTree::expire(const std::string &symbolicPath, const int64_t expireAt, const uint32_t op, const int64_t requestTime) {
-    Result result;
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    rocksdb::Status s;
-    std::string keyMeta = getMetaKeyOfExpireSetting(symbolicPath);
-    //but the basic routine is samesame
-    //no need to check key exists, this is a complicate key, so it must be exists
-    if(Protocol::Client::CLEAN_UP_EXPIRE_KEYS == op)
-    {
-        std::string content = "";
-        auto getOldExpireResult = rdb->Get(readOptions, pcf, keyMeta, &content);
-        if(getOldExpireResult.ok())
-        {
-            const int64_t oldExpireTime = *((const int64_t*)content.c_str());
-            if(oldExpireTime == expireAt)
-            {
-                cleanExpiredKeys(symbolicPath);
-            }
-            //not same, might be triggered by read request when doing write request 
-        }
-        //nothing found, do nothing, can be duplicate request 
-    }else{
-        rdb->Put(writeOptions, pcf, keyMeta, rocksdb::Slice((const char*)&expireAt, sizeof(int64_t)));
-        //should maintain a list to make sure it can hold in memory
-        //but currently it's ok to stop here, let's make it work first
-        expireCache[symbolicPath] = expireAt;
-    }
-    return result;
-
-} 
-
 
 Result
 RocksdbTree::lpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
@@ -680,30 +606,6 @@ RocksdbTree::ltrim(const std::string& symbolicPath, const std::vector<std::strin
     return result;
 }
 
-int64_t RocksdbTree::getKeyExpireTime(const std::string& path)
-{
-    auto it = expireCache.find(path);
-    if(expireCache.end() != it)
-    {
-        return it->second;
-    }
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string key = getMetaKeyOfExpireSetting(path);
-    std::string contents = "";
-    rocksdb::Status s = rdb->Get(rocksdb::ReadOptions(), pcf, key, &contents);
-    if(s.ok())
-    {
-        return *((const int64_t*)contents.c_str());
-    }else{
-        return -1;
-    }
-}
-
 Result
 RocksdbTree::read(const std::string& symbolicPath, std::string& contents)
 {
@@ -886,48 +788,6 @@ TODO: shoudl check path legal before remove
 
     rdb->Delete(writeOptions, pcf, symbolicPath);
     return result;
-}
-
-void RocksdbTree::cleanUpExpireKeyEvent()
-{
-    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    long now = timeSpec.tv_sec;
-    static std::string lastCheckKey = ":meta:e:";
-    
-    
-    ColumnFamilyHandlePtr cfp = getColumnFamilyHandle("cf0", true);
-    rocksdb::ColumnFamilyHandle* pcf = cfp.get();
-    if (NULL == pcf) {
-        PANIC("Get cf failed");
-    }
-
-    std::string contents = "";
-    //check 1000 keys in one expire test
-    int counter = 1000;
-
-    auto it = rdb->NewIterator(readOptions, pcf);
-    for(it->Seek(lastCheckKey);counter > 0 && it->Valid() ; counter-- ,it->Next()){
-        if(!it->key().starts_with(":meta:e"))
-        {
-            //loop back to start if reach end
-            lastCheckKey = ":meta:e:";
-            break;
-        }
-        std::string content = it->value().ToString();
-        int64_t expireSecond = *((const int64_t*)content.c_str());
-        if(expireSecond < now)
-        {
-            std::string key = it->key().ToString();
-            //8 = strlen of ":meta:e:"
-            std::string path = key.substr(8);
-            VERBOSE("the path :%s, should be expired at :%ld", path.c_str(), expireSecond);
-            //TODO: what should I do to make it expired by upper layer
-            //or, should i just use the cache to do expie?
-//            appendCleanExpireRequestLog(path, expireSecond);
-        }
-        lastCheckKey = it->key().ToString();
-    }
-    delete it;
 }
 
 

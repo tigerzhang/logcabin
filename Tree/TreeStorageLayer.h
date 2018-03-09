@@ -18,7 +18,6 @@ class TreeStorageLayer
 protected:
     std::map<std::string, uint64_t> listIndexes;
     std::map<std::string, uint64_t> listRevertIndexes;
-    std::map<std::string, int64_t> expireCache;
 
 public:
     TreeStorageLayer(){};
@@ -62,9 +61,6 @@ public:
     ltrim(const std::string& path, const std::vector<std::string>& contents, int64_t requestTime) = 0;
 
     virtual Result
-    expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time) = 0;
-
-    virtual Result
     scard(const std::string& path,
                   std::string& content) const = 0;
 
@@ -80,16 +76,9 @@ public:
     virtual Result
     head(const std::string& path, std::string& contents) const = 0;
 
-    virtual int64_t getKeyExpireTime(const std::string& path) = 0;
-
     virtual void startSnapshot(uint64_t lastIncludedIndex) = 0;
 
-    virtual Result removeExpireSetting(const std::string& path) = 0;
-
-    virtual void cleanUpExpireKeyEvent() = 0;
-     
     virtual Result removeFile(const std::string& symbolicPath) = 0;
-    virtual Result cleanExpiredKeys(const std::string& path) = 0;
 
     virtual ~TreeStorageLayer(){};
 };

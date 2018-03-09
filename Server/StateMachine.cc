@@ -332,11 +332,6 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
                         command.tree(),
                         *inserted.first->second.mutable_tree());
                     session.lastModified = entry.clusterTime;
-                    if(it->first == 0)
-                    {
-                        //update tree's zero session so it won't make duplicate request
-                        tree.setUpZeroSessionIndex(it->second.firstOutstandingRPC+1);
-                    }
                 }
                 else {
                     // response exists, do not re-apply

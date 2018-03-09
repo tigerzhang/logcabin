@@ -214,32 +214,6 @@ readWriteTreeRPC(Tree& tree,
 
                 
         }
-        switch(request.command())
-        {
-            case Protocol::Client::SET_UP_EXPIRE_IN:
-            case Protocol::Client::CLEAN_UP_EXPIRE_KEYS:
-                {
-
-                    result = tree.expire(request.path(),
-                            request.expire_in(),
-                            request.command(),
-                            request.request_time()
-                            );
-                    break;
-                }
-            default:
-                if(request.has_expire_in() && request.expire_in() != 0)
-                {
-                    //command didn't set up to do expire, but the expire in is set
-                    //treat it as set up expire
-                    result = tree.expire(request.path(),
-                            request.expire_in(),
-                            Protocol::Client::SET_UP_EXPIRE_IN,
-                            request.request_time()
-                            );
-                }
-                break;
-        }
     }
 
     response.set_status(static_cast<PC::Status>(result.status));

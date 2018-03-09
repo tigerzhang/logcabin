@@ -411,3 +411,12 @@ $ ./build/Examples/TreeOps -c $LOCALSERVER read /msgq/app1/uid9997
 <
 <
 ```
+
+## FAQ
+- Link error and get a lot of protobuf symbol not found
+    check the path of lib protobuf by 
+    ```
+    cmake . |grep protobuf
+    ```
+
+    and check the version of the ouptut's lib, the protobuf lib should be v2.6.1
