@@ -2626,6 +2626,10 @@ RaftConsensus::packEntries(
         // This entry fit, so we'll send it.
         ++numEntries;
     }
+    if(numEntries > 1)
+    {
+        NOTICE("appending multiple entries:%lu", numEntries);
+    }
 
     assert(numEntries == uint64_t(requestEntries.size()));
     return numEntries;
