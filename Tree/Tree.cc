@@ -20,7 +20,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include "Tree/MemTree.h"
+#include "Tree/RocksdbTree.h"
 #include "build/Protocol/ServerStats.pb.h"
 #include "build/Tree/Snapshot.pb.h"
 #include "Core/Debug.h"
@@ -151,7 +151,7 @@ Tree::Tree() :
     worker_ctx.ClearFlags();
 #endif // ARDB_FSM
 
-    storage_layer = std::make_shared<MemTree>();
+    storage_layer = std::make_shared<RocksdbTree>();
 }
 
 Tree::~Tree() {
@@ -406,15 +406,6 @@ Tree::removeDirectory(const std::string& symbolicPath)
     ++numRemoveDirectorySuccess;
     return result;
 }
-Result Tree::removeExpireSetting(const std::string& path)
-{
-    return storage_layer->removeExpireSetting(path);
-}
-    
-Result Tree::cleanExpiredKeys(const std::string& path)
-{
-    return storage_layer->cleanExpiredKeys(path);
-}
 
 Result
 Tree::write(const std::string& symbolicPath, const std::string& contents, int64_t requestTime)
@@ -433,7 +424,6 @@ Tree::write(const std::string& symbolicPath, const std::string& contents, int64_
         return result;
     }
 
-    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     result = storage_layer->write(symbolicPath, contents, requestTime);
 
 #ifdef ARDB_FSM
@@ -515,37 +505,11 @@ Tree::pub(const std::string& symbolicPath, const std::string& contents)
     return lpush(symbolicPath, contents, 0);
 }
 
-Result
-Tree::expire(const std::string &symbolicPath, const int64_t expireIn, const uint32_t op, const int64_t requestTime) {
-    ++numExpireAttempted;
-    VERBOSE("expire request recv for:%s", symbolicPath.c_str());
-    Result result;
-    int64_t expireAt = 0;
-    if(Protocol::Client::CLEAN_UP_EXPIRE_KEYS == op)
-    {
-        //this is a expire clean up request, no need to check expire, it will be removed after all
-        VERBOSE("this is a clean up request for :%s", symbolicPath.c_str());
-    } 
-    else
-    {
-        //need to check expire before setting a new expire
-        VERBOSE("this is a set up request for :%s", symbolicPath.c_str());
-        checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
-        expireAt = requestTime + expireIn;
-    }
-
-    storage_layer->expire(symbolicPath, expireAt, op, requestTime);
-
-    ++numExpireSuccess;
-    return result;
-}
-
 //TODO: should extract lpush and rpush
 Result
 Tree::lpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numRPushAttempted;
     Result result;
-    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     result = storage_layer->lpush(symbolicPath, contents, requestTime);
     ++numRPushSuccess;
     return result;
@@ -555,7 +519,6 @@ Result
 Tree::rpush(const std::string &symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numRPushAttempted;
     Result result;
-    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     result = storage_layer->rpush(symbolicPath, contents, requestTime);
     ++numRPushSuccess;
     return result;
@@ -565,7 +528,6 @@ Result
 Tree::lpop(const std::string& symbolicPath, const std::string& contents, int64_t requestTime) {
     ++numLPopAttempted;
     Result result;
-    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     result = storage_layer->lpop(symbolicPath, contents, requestTime);
     ++numLPopSuccess;
     return result;
@@ -575,7 +537,6 @@ Result
 Tree::lrem(const std::string& symbolicPath, const std::string &contents, const int32_t count, int64_t requestTime) {
     ++numLRemAttempted;
     Result result;
-    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     result = storage_layer->lrem(symbolicPath, contents, count, requestTime);
     ++numLRemSuccess;
     return result;
@@ -585,110 +546,10 @@ Result
 Tree::ltrim(const std::string& symbolicPath, const std::string &contents, int64_t requestTime) {
     ++numLTrimAttempted;
     Result result;
-    checkIsKeyExpiredForWriteRequest(symbolicPath, requestTime);
     std::vector<std::string> args(std::move(split_args(contents)));
     result = storage_layer->ltrim(symbolicPath, args, requestTime);
     ++numLTrimSuccess;
     return result;
-}
-
-bool Tree::checkIsKeyExpiredForWriteRequest(const std::string& symbolicPath, int64_t requestTime)
-{
-    auto expireStatus = isKeyExpired(symbolicPath, requestTime); 
-    if(Tree::KeyExpireStatusExpired == expireStatus)
-    {
-        cleanExpiredKeys(symbolicPath);
-        return true;
-    }
-    else if(Tree::KeyExpireStatusNotExpired == expireStatus)
-    {
-        //expire should be flush before writing
-        removeExpireSetting(symbolicPath);
-        return false;
-    }
-    else
-    {
-        //nothing todo if there is no setting for expire
-        return false;
-    }
-}
-
-bool Tree::checkIsKeyExpiredForReadRequest(const std::string& symbolicPath)
-{
-    if(isKeyExpired(symbolicPath, 0) == Tree::KeyExpireStatusExpired)
-    {
-        return true;
-    }
-    return false;
-}
-
-void Tree::appendCleanExpireRequestLog(const std::string &path, const int64_t expireAt)
-{
-    if(NULL == raft ||
-            raft->state != Server::RaftConsensus::State::LEADER ){
-        // don't need to do anything if this node is not leader
-        return;
-    }
-    //this function should not be retry!
-    uint64_t index = this->zeroSessionIndex;
-    Protocol::Client::StateMachineCommand::Request command;
-    command.mutable_tree()->set_path(path);
-    command.mutable_tree()->set_command(LogCabin::Protocol::Client::CLEAN_UP_EXPIRE_KEYS);
-    command.mutable_tree()->set_expire_in(expireAt);
-    command.mutable_tree()->mutable_exactly_once()->set_client_id(0);
-    command.mutable_tree()->mutable_exactly_once()->set_rpc_number(index);
-    command.mutable_tree()->mutable_exactly_once()->set_first_outstanding_rpc(index);
-    this->zeroSessionIndex ++;
-    Core::Buffer cmdBuffer;
-    Core::ProtoBuf::serialize(command, cmdBuffer);
-    //this make the Tool compile fail, but it's ok in current stage
-
-    //also make sure you are master, but this can be put off
-    if(NULL != raft )
-    {
-        raft->replicate(cmdBuffer);
-    }
-}
-
-
-int64_t Tree::getKeyExpireTime(const std::string& path)
-{
-    //nothing found, goto rdb
-    return storage_layer->getKeyExpireTime(path);
-}
-
-#define IS_REQUEST_FROM_READ (0 == requestTime)
-Tree::KeyExpireStatus Tree::isKeyExpired(const std::string& path, int64_t requestTime)
-{
-    auto expireAt = getKeyExpireTime(path);
-    if(expireAt == -1)
-    {
-        //no expire setting is found
-        return Tree::KeyExpireStatusNotSet;
-    }
-    long now = requestTime;
-    if(IS_REQUEST_FROM_READ)
-    {
-        //use current time if the request time is zero
-        auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-        now = timeSpec.tv_sec;
-    }
-
-    if(now > expireAt)
-    {
-        //don'y delete anything here, just return if the reqeust time is not zero
-        if(IS_REQUEST_FROM_READ)
-        {
-            appendCleanExpireRequestLog(path, expireAt);
-        }
-        VERBOSE("key expired:%s", path.c_str());
-        return Tree::KeyExpireStatusExpired;
-    }
-    else
-    {
-        //not expired, return this
-        return Tree::KeyExpireStatusNotExpired;
-    }
 }
 
 Result
@@ -697,14 +558,6 @@ Tree::read(const std::string& symbolicPath, std::string& contents)
     ++numReadAttempted;
     Result result;
     contents = "";
-    if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
-    {
-
-        result.status = Status::LOOKUP_ERROR;
-        result.error = "Key expired";
-        return result; 
-    }
-
 #ifdef ARDB_FSM
     ardb::codec::ArgumentArray cmdArray;
     cmdArray.push_back("smembers");
@@ -760,12 +613,6 @@ Tree::lrange(const std::string& symbolicPath, const std::string& args, std::vect
     output.clear() ;
     VERBOSE("LRANGE command: path=%s, args=%s\n", symbolicPath.c_str(), args.c_str());
 
-    if(true == checkIsKeyExpiredForReadRequest(symbolicPath))
-    {
-        result.status = Status::LOOKUP_ERROR;
-        result.error = "Key expired";
-        return result;
-    }
     std::vector<std::string> splittedArgs(std::move(split_args(args)));
 
     result = storage_layer->lrange(symbolicPath, splittedArgs, output);
@@ -837,26 +684,6 @@ Tree::updateServerStats(Protocol::ServerStats::Tree& tstats) const
         numRemoveFileDone);
     tstats.set_num_remove_file_success(
         numRemoveFileSuccess);
-}
-
-void Tree::cleanUpExpireKeyEvent(){
-    if(NULL == raft ||
-            raft->state != Server::RaftConsensus::State::LEADER)
-    {
-        //don't do check on follower, but the timer should keep running
-        return;
-    }
-    //TODO:need to do more to append log
-    storage_layer->cleanUpExpireKeyEvent();
-
-}
-
-void Tree::setUpZeroSessionIndex(uint64_t index)
-{
-    VERBOSE("set up zero session index:%ld", index);
-    if(index > this->zeroSessionIndex){
-        this->zeroSessionIndex = index;
-    }
 }
 
 void Tree::startSnapshot(uint64_t lastIncludedIndex) {

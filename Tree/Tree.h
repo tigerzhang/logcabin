@@ -126,8 +126,6 @@ class Tree {
 
     void Init(std::string& path);
 
-    void setUpZeroSessionIndex(uint64_t index);
-
     void findLatestSnapshot(Core::ProtoBuf::OutputStream* stream) const;
     /**
      * Write the tree to the given stream.
@@ -313,81 +311,8 @@ class Tree {
 
     void setRaft(LogCabin::Server::RaftConsensus* raft);
 
-    /**
-      scan through meta info of expire key, clean up the expired keys
-      */
-    void cleanUpExpireKeyEvent();
 
 private:
-
-    enum KeyExpireStatus{
-        KeyExpireStatusNotExpired,
-        KeyExpireStatusExpired,
-        KeyExpireStatusNotSet,
-    };
-
-
-    /**
-     * check if the key is expire or not , also clean up the key if it's expired, this should be called at the begin of all reading reqeust
-     * 
-     * \param[in] path
-     *      The key of which you wanna check if it's expired or not.
-     * \return KeyExpireStatus
-     */
-    KeyExpireStatus isKeyExpired(const std::string& path, int64_t request_time);
-
-    /**
-      construct the meta key of the path's expire setting
-     */
-    const std::string getMetaKeyOfExpireSetting(const std::string& path);
-
-    /**
-      do check expire fo writing request, if expired, 
-      the expire setting and the old value of this path will be removed,
-      return true if the key is expired
-      reutrn false if the key is not expired or no expire setting on the key
-     */
-    bool checkIsKeyExpiredForWriteRequest(const std::string& path, int64_t request_time);
-
-    /**
-      do check expire fo read request, if expired, 
-      a log with clean up expire setting will be appended to raft service.
-      reutrn false if the key is not expired or no expire setting on the key
-     */
-    bool checkIsKeyExpiredForReadRequest(const std::string& path);
-
-
-    /*
-       a session whose client id is zero means it's started inside server, 
-       this api is used to set up the exactly_once index, so the requested log won't be dropped because of index
-    */
-    uint64_t zeroSessionIndex;
-    void appendCleanExpireRequestLog(const std::string& path, const int64_t expireIn);
-
-    /*
-       return -1 if key is not in the expire list, reutrn the timestamp (unit: second) if the key exists in expire list
-    */
-    int64_t getKeyExpireTime(const std::string& path);
-
-
-    /**
-     * clean the expired keys, this should be call expired key is detected. 
-        This api should call removeExpireSetting at the end of the call
-     * 
-     * \param[in] path
-     *      The key of which you wanna check if it's expired or not.
-     */
-    Result cleanExpiredKeys(const std::string& path);
-
-    /**
-     * clean the meta info of the key's expire info
-     * 
-     * \param[in] path
-     *      The key of which you wanna check if it's expired or not.
-     */
-    Result removeExpireSetting(const std::string& path);
-
-
 
     // Server stats collected in updateServerStats.
     // Note that when a condition fails, the operation is not invoked,

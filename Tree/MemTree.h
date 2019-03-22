@@ -300,9 +300,6 @@ public:
     ltrim(const std::string& path, const std::vector<std::string>& contents, int64_t requestTime) ;
 
     virtual Result
-    expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time) ;
-
-    virtual Result
     read(const std::string& path, std::string& contents) ;
 
     virtual Result
@@ -314,16 +311,10 @@ public:
     virtual Result
     head(const std::string& path, std::string& contents) const ;
 
-    virtual int64_t getKeyExpireTime(const std::string& path) ;
 
     virtual void startSnapshot(uint64_t lastIncludedIndex) ;
 
-    virtual Result removeExpireSetting(const std::string& path) ;
-
-    virtual void cleanUpExpireKeyEvent() ;
-     
     virtual Result removeFile(const std::string& symbolicPath) ;
-    virtual Result cleanExpiredKeys(const std::string& path) ;
 
     virtual ~MemTree(){};
 };

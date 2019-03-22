@@ -18,7 +18,6 @@
 
 #include "include/LogCabin/Client.h"
 #include "Client/ClientImpl.h"
-#include "Client/MockClientImpl.h"
 #include "Core/StringUtil.h"
 
 namespace LogCabin {
@@ -717,14 +716,8 @@ TestingCallbacks::stateMachineCommand(
 
 ////////// Cluster //////////
 
-Cluster::Cluster(std::shared_ptr<TestingCallbacks> testingCallbacks,
-                 const std::map<std::string, std::string>& options)
-    : clientImpl(std::make_shared<MockClientImpl>(
-        testingCallbacks ? testingCallbacks
-                         : std::make_shared<TestingCallbacks>()))
-{
-    clientImpl->init("-MOCK-");
-}
+//TODO: move this to somewhere else
+
 
 Cluster::Cluster(const std::string& hosts,
                  const std::map<std::string, std::string>& options)

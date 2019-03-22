@@ -96,7 +96,6 @@ StateMachine::StateMachine(std::shared_ptr<RaftConsensus> consensus,
     tree.setRaft(consensus.get());
 #endif
     tree.Init(consensus->storageLayout.serverDir.path);
-    this->globals.eventLoop.setTreeForExpireTimer(&tree);
     versionHistory.insert({0, 1});
     consensus->setSupportedStateMachineVersions(MIN_SUPPORTED_VERSION,
                                                 MAX_SUPPORTED_VERSION);
@@ -333,11 +332,6 @@ StateMachine::apply(const RaftConsensus::Entry& entry)
                         command.tree(),
                         *inserted.first->second.mutable_tree());
                     session.lastModified = entry.clusterTime;
-                    if(it->first == 0)
-                    {
-                        //update tree's zero session so it won't make duplicate request
-                        tree.setUpZeroSessionIndex(it->second.firstOutstandingRPC+1);
-                    }
                 }
                 else {
                     // response exists, do not re-apply

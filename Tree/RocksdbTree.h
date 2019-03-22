@@ -20,7 +20,6 @@ namespace Tree {
         virtual Result
             listDirectory(const std::string& symbolicPath, std::vector<std::string>& children) const;
 
-        virtual int64_t getKeyExpireTime(const std::string& path);
         virtual Result
             removeDirectory(const std::string& symbolicPath);
         virtual void dumpSnapshot(Core::ProtoBuf::OutputStream& stream) const ;
@@ -54,9 +53,6 @@ namespace Tree {
             ltrim(const std::string& path, const std::vector<std::string>& contents, int64_t requestTime) ;
 
         virtual Result
-            expire(const std::string& path, const int64_t expire, const uint32_t op, int64_t request_time) ;
-
-        virtual Result
             read(const std::string& path, std::string& contents) ;
 
         virtual Result
@@ -65,15 +61,19 @@ namespace Tree {
         virtual Result
             head(const std::string& path, std::string& contents) const ;
 
-        virtual Result removeExpireSetting(const std::string& path);
 
         virtual Result remove(const std::string& path);
 
-        virtual Result cleanExpiredKeys(const std::string& path);
 
         virtual void startSnapshot(uint64_t lastIncludedIndex);
 
-        virtual void cleanUpExpireKeyEvent() ;
+        virtual Result
+            smembers(const std::string& symbolicPath, std::vector<std::string>& children) const;
+
+        virtual Result
+            scard(const std::string& path,
+                    std::string& content) const;
+
         private:
 
         std::string serverDir;

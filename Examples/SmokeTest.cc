@@ -27,6 +27,21 @@
 #include <LogCabin/Client.h>
 #include <LogCabin/Debug.h>
 
+#include "Client/ClientImpl.h"
+#include "Client/MockClientImpl.h"
+namespace LogCabin{
+    namespace Client {
+
+        Cluster::Cluster(std::shared_ptr<TestingCallbacks> testingCallbacks,
+                const std::map<std::string, std::string>& options)
+            : clientImpl(std::make_shared<MockClientImpl>(
+                        testingCallbacks ? testingCallbacks
+                        : std::make_shared<TestingCallbacks>()))
+            {
+                clientImpl->init("-MOCK-");
+            }
+    }
+}
 namespace {
 
 using LogCabin::Client::Cluster;

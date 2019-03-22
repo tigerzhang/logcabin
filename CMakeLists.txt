@@ -14,6 +14,8 @@ set(GTEST_SOURCE_DIR_NAME gtest-c6d1811)
 set(GTEST_LIB_NAME libgtest.a)
 set(GTEST_REL_DIR ${THIRD_PARTY_LIBS_REL_DIR}/${GTEST_SOURCE_DIR_NAME})
 set(GTEST_SOURCE_DIR ${THIRD_PARTY_DEPS_DIR}/${GTEST_SOURCE_DIR_NAME})
+SET(CMAKE_EXE_LINKER_FLAGS -pg)
+
 
 # Vars for building rocksdb
 set(ROCKSDB_SOURCE_DIR_NAME rocksdb-5.2.1)
@@ -302,13 +304,15 @@ if (APPLE)
     message(STATUS "Can not find library in non-Linux machine")
 elseif (UNIX)
     find_library(LZ4_LIB_STATIC NAMES liblz4.a)
-    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a")
+    find_library(PROTOBUF_LIB_STATIC NAMES "libprotobuf.a" HINTS ${PROTOBUF_REL_DIR}/lib)
+#    SET(PROTOBUF_LIB_STATIC ${PROTOBUF_REL_DIR}/lib/libprotobuf.a)
     find_library(CRYPTOPP_LIB_STATIC NAMES libcrypto++.a)
     find_library(SNAPPY_LIB_STATIC NAMES libsnappy.a)
     find_library(BZ2_LIB_STATIC NAMES libbz2.a)
     find_library(JEMALLOC_LIB_STATIC NAMES libjemalloc.a)
     file(GLOB EVENT_LIB_STATIC ${LIBEVENT_REL_DIR}/lib)
     find_library(BOOST_SYSTEM_LIB_STATIC NAMES libboost_system.a)
+    message(STATUS "protobuf path:" ${PROTOBUF_LIB_STATIC})
     set(LIBS ${SUBMODULE_LIBS}
             ${LZ4_LIB_STATIC}
             ${PROTOBUF_LIB_STATIC}
@@ -337,7 +341,7 @@ include_directories(${LIBEVENT_REL_DIR}/include
 
 add_library(logcabin STATIC
         ${CLIENT_FILES}
-        ${TREE_FILES}
+        #${TREE_FILES}
         ${SERVER_FILES}
         ${ProtocolProtoSources}
         ${STORAGE_FILES}
@@ -360,13 +364,13 @@ add_executable(Reconfigure ${CMAKE_SOURCE_DIR}/Examples/Reconfigure.cc)
 target_link_libraries(Reconfigure logcabin ${LIBS})
 add_executable(ReconfigureTest ${CMAKE_SOURCE_DIR}/Examples/ReconfigureTest.cc)
 target_link_libraries(ReconfigureTest logcabin ${LIBS})
-add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc)
+add_executable(SmokeTest ${CMAKE_SOURCE_DIR}/Examples/SmokeTest.cc ${TREE_FILES})
 target_link_libraries(SmokeTest logcabin ${LIBS})
-add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc)
+add_executable(TreeOps ${CMAKE_SOURCE_DIR}/Examples/TreeOps.cc ${TREE_FIELS})
 target_link_libraries(TreeOps logcabin ${LIBS})
-add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc)
+add_executable(ServerControl ${CMAKE_SOURCE_DIR}/Client/ServerControl.cc ${TREE_FILES})
 target_link_libraries(ServerControl logcabin ${LIBS})
-add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources})
+add_executable(Tool ${CMAKE_SOURCE_DIR}/Storage/Tool.cc ${STORAGE_FILES} ${ServerProtoSources} ${TREE_FILES})
 target_link_libraries(Tool logcabin ${LIBS} pthread)
 
 file(GLOB CLIENT_TEST_FILES "Client/*Test.cc" "Client/*Mock.cc")
@@ -394,7 +398,7 @@ set(TEST_SOURCE_FILES test/TestRunner.cc
         ${SERVER_TEST_FILES}
         ${STORAGE_TEST_FILES}
         ${TREE_TEST_FILES})
-add_executable(Test ${TEST_SOURCE_FILES})
+add_executable(Test ${TEST_SOURCE_FILES} ${TREE_FILES})
 target_link_libraries(Test logcabin ${LIBS})
 
 SET(INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/logcabin)

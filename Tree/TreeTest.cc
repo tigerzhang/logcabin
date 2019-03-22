@@ -483,6 +483,21 @@ TEST_F(TreeTreeTest, rpush)
     EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
 }
 
+TEST_F(TreeTreeTest, sadd)
+{
+    EXPECT_EQ(Status::INVALID_ARGUMENT, tree.sadd("", {""}).status);
+//    EXPECT_EQ(Status::TYPE_ERROR, tree.sadd("/", {""}).status);
+    EXPECT_OK(tree.sadd("/sadd_test/a", {"foo_a"}));
+    EXPECT_OK(tree.sadd("/sadd_test/b", {"foo_b"}));
+    std::vector<std::string> contents;
+    EXPECT_OK(tree.smembers("/sadd_test/a", contents));
+    EXPECT_EQ(1, contents.size());
+    EXPECT_EQ("foo_a", contents[ 0 ]);
+    EXPECT_OK(tree.smembers("/sadd_test/b", contents));
+    EXPECT_EQ(1, contents.size());
+    EXPECT_EQ("foo_b", contents[ 0 ]);
+}
+
 TEST_F(TreeTreeTest, write)
 {
     auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
@@ -528,45 +543,6 @@ TEST_F(TreeTreeTest, read)
     result = tree.read("/c", contents);
     EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
     EXPECT_EQ("/c does not exist", result.error);
-}
-
-TEST_F(TreeTreeTest, expire)
-{
-    std::string contents;
-    auto timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    long now = timeSpec.tv_sec;
-    EXPECT_OK(tree.write("/a", "foo", now));
-    EXPECT_OK(tree.read("/a", contents));
-    EXPECT_EQ("foo", contents);
-    //set to expire in 2 seconds
-
-    Result result;
-
-    EXPECT_OK(tree.expire("/a", 2, Protocol::Client::SET_UP_EXPIRE_IN,now));
-    
-    sleep(1);
-    //should not expire in 1 second
-    EXPECT_OK(tree.read("/a", contents));
-
-    timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    now = timeSpec.tv_sec;
-    //write again to it should flush the expire setting
-    EXPECT_OK(tree.write("/a", "foo", now));
-    sleep(2);
-    //so you can get it after 2 second
-    EXPECT_OK(tree.read("/a", contents));
-
-    //set to expire in 1 second
-    timeSpec = Core::Time::makeTimeSpec(Core::Time::SystemClock::now());
-    now = timeSpec.tv_sec;
-    EXPECT_OK(tree.expire("/a", 1, Protocol::Client::SET_UP_EXPIRE_IN, now));
-
-    sleep(2);
-
-    //should expire now
-    result = tree.read("/a", contents);
-    
-    EXPECT_EQ(Status::LOOKUP_ERROR, result.status);
 }
 
 TEST_F(TreeTreeTest, removeFile)
